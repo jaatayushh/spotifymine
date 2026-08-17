@@ -169,14 +169,8 @@ export function getGradientColors(str: string): [string, string] {
 /**
  * Generate a dynamic SVG cover art Data URL as fallback
  */
-export function generateCoverArt(title?: string, artist?: string, colors?: [string, string]): string {
-  const safeTitle = title || 'Music';
-  const safeArtist = artist || 'Artist';
-  const safeColors = (colors && colors.length >= 2 && colors[0] && colors[1])
-    ? colors
-    : getGradientColors(safeTitle);
-
-  const initials = safeTitle
+export function generateCoverArt(title: string, artist: string, colors: [string, string]): string {
+  const initials = title
     .split(' ')
     .map((w) => w[0])
     .filter(Boolean)
@@ -187,8 +181,8 @@ export function generateCoverArt(title?: string, artist?: string, colors?: [stri
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
       <defs>
         <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="${safeColors[0]}" />
-          <stop offset="100%" stop-color="${safeColors[1]}" />
+          <stop offset="0%" stop-color="${colors[0]}" />
+          <stop offset="100%" stop-color="${colors[1]}" />
         </linearGradient>
         <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
           <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/>
@@ -208,10 +202,10 @@ export function generateCoverArt(title?: string, artist?: string, colors?: [stri
       
       <!-- Title text -->
       <text x="150" y="185" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="16" fill="#FFFFFF" text-anchor="middle">
-        ${safeTitle.length > 22 ? safeTitle.substring(0, 20) + '...' : safeTitle}
+        ${title.length > 22 ? title.substring(0, 20) + '...' : title}
       </text>
       <text x="150" y="210" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="13" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">
-        ${safeArtist.length > 25 ? safeArtist.substring(0, 23) + '...' : safeArtist}
+        ${artist.length > 25 ? artist.substring(0, 23) + '...' : artist}
       </text>
     </svg>`;
 

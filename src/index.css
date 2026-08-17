@@ -1,22 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
-
 @layer utilities {
-  /* Spotify-style scrollbar */
+  /* Custom Spotify Scrollbar */
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.4);
   }
 
   .animate-spin-slow {
@@ -26,121 +27,26 @@
   .pb-safe {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+
   .bottom-safe {
     bottom: env(safe-area-inset-bottom, 0px);
   }
-
-  /* Equalizer bar animation classes */
-  .eq-bar-1 { animation: eqBounce 0.9s ease-in-out infinite; }
-  .eq-bar-2 { animation: eqBounce 0.9s ease-in-out infinite 0.15s; }
-  .eq-bar-3 { animation: eqBounce 0.9s ease-in-out infinite 0.3s; }
-  .eq-bar-4 { animation: eqBounce 0.9s ease-in-out infinite 0.05s; }
 }
 
-/* ── Keyframe animations ── */
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-@keyframes eqBounce {
-  0%, 100% { transform: scaleY(0.4); }
-  50%       { transform: scaleY(1.0); }
-}
-
-@keyframes lyricsBarPulse {
-  0%, 100% { opacity: 1; transform: scaleY(1); }
-  50%       { opacity: 0.5; transform: scaleY(0.65); }
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes shimmer {
-  0%   { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-}
-
-/* ── Skeleton shimmer ── */
-.skeleton {
-  background: linear-gradient(90deg, #1a1a1a 25%, #262626 50%, #1a1a1a 75%);
-  background-size: 800px 100%;
-  animation: shimmer 1.4s infinite linear;
-  border-radius: 6px;
-}
-
-/* ── Range slider — remove default thumb, style with CSS ── */
-input[type='range'] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-input[type='range']::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 9999px;
-  background: rgba(255,255,255,0.2);
-}
-input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ffffff;
-  margin-top: -4px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.5);
-  transition: transform 0.15s ease, background 0.15s ease;
-}
-input[type='range']:hover::-webkit-slider-thumb {
-  transform: scale(1.3);
-  background: #1DB954;
-}
-input[type='range']::-moz-range-track {
-  height: 4px;
-  border-radius: 9999px;
-  background: rgba(255,255,255,0.2);
-}
-input[type='range']::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: none;
-  cursor: pointer;
-  transition: transform 0.15s ease;
-}
-input[type='range']:hover::-moz-range-thumb {
-  transform: scale(1.3);
-  background: #1DB954;
-}
-
-/* ── Progress-bar specific — thinner thumb ── */
-.progress-range::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  margin-top: -5px;
-  background: #fff;
-}
-.progress-range:hover::-webkit-slider-thumb {
-  background: #fff;
-  transform: scale(1.2);
-}
-
-/* ── Volume range — smaller thumb ── */
-.volume-range::-webkit-slider-thumb {
-  width: 10px;
-  height: 10px;
-  margin-top: -3px;
-}
-
-/* ── Base styles ── */
+/* Base styles */
 html, body {
   background-color: #000000;
   color: #ffffff;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-overflow-scrolling: touch;

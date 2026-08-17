@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Play, Music, ListMusic, Radio, Trash2, Shuffle, SlidersHorizontal } from 'lucide-react';
+import { X, Play, Music, ListMusic, Radio, Trash2, Shuffle } from 'lucide-react';
 import { Track } from '../types';
 
 interface QueueModalProps {
@@ -12,10 +12,7 @@ interface QueueModalProps {
   isAutoplay?: boolean;
   onToggleAutoplay?: () => void;
   onRemoveFromQueue?: (index: number) => void;
-  onClearQueue?: () => void;
   isShuffle?: boolean;
-  crossfadeDuration?: number;
-  onCrossfadeChange?: (seconds: number) => void;
 }
 
 export const QueueModal: React.FC<QueueModalProps> = ({
@@ -28,10 +25,7 @@ export const QueueModal: React.FC<QueueModalProps> = ({
   isAutoplay = false,
   onToggleAutoplay,
   onRemoveFromQueue,
-  onClearQueue,
   isShuffle = false,
-  crossfadeDuration = 0,
-  onCrossfadeChange,
 }) => {
   if (!isOpen) return null;
 
@@ -53,97 +47,34 @@ export const QueueModal: React.FC<QueueModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
           
-          {/* Playback Settings Group (Autoplay & Crossfade) */}
-          <div className="space-y-3">
-            {/* Autoplay Toggle */}
-            {onToggleAutoplay && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-full ${isAutoplay ? 'bg-[#1DB954]/20 text-[#1DB954]' : 'bg-zinc-800 text-zinc-400'}`}>
-                    <Radio className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Autoplay</h3>
-                    <p className="text-[11px] text-zinc-400">Play similar songs when queue ends</p>
-                  </div>
+          {/* Autoplay Toggle */}
+          {onToggleAutoplay && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-full ${isAutoplay ? 'bg-[#1DB954]/20 text-[#1DB954]' : 'bg-zinc-800 text-zinc-400'}`}>
+                  <Radio className="w-5 h-5" />
                 </div>
-                <button
-                  onClick={onToggleAutoplay}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    isAutoplay ? 'bg-[#1DB954]' : 'bg-zinc-600'
+                <div>
+                  <h3 className="text-sm font-bold text-white">Autoplay</h3>
+                  <p className="text-[11px] text-zinc-400">Play similar songs when queue ends</p>
+                </div>
+              </div>
+              <button
+                onClick={onToggleAutoplay}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isAutoplay ? 'bg-[#1DB954]' : 'bg-zinc-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isAutoplay ? 'translate-x-6' : 'translate-x-1'
                   }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      isAutoplay ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            )}
-
-            {/* Crossfade Setting */}
-            {onCrossfadeChange && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${crossfadeDuration > 0 ? 'bg-[#1DB954]/20 text-[#1DB954]' : 'bg-zinc-800 text-zinc-400'}`}>
-                      <SlidersHorizontal className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Crossfade</h3>
-                      <p className="text-[11px] text-zinc-400">Smooth audio transition between songs</p>
-                    </div>
-                  </div>
-                  <span
-                    className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full ${
-                      crossfadeDuration > 0
-                        ? 'bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30'
-                        : 'bg-zinc-800 text-zinc-400'
-                    }`}
-                  >
-                    {crossfadeDuration > 0 ? `${crossfadeDuration}s` : 'Off'}
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 pt-1">
-                  <input
-                    type="range"
-                    min={0}
-                    max={12}
-                    step={1}
-                    value={crossfadeDuration}
-                    onChange={(e) => onCrossfadeChange(parseInt(e.target.value, 10))}
-                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#1DB954]"
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-zinc-500">
-                    <span>Off</span>
-                    <span>4s</span>
-                    <span>8s</span>
-                    <span>12s</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-5 gap-1 pt-1">
-                  {[0, 2, 4, 6, 10].map((sec) => (
-                    <button
-                      key={sec}
-                      onClick={() => onCrossfadeChange(sec)}
-                      className={`py-1 text-[10px] font-bold rounded-md transition-all ${
-                        crossfadeDuration === sec
-                          ? 'bg-[#1DB954] text-black shadow-sm'
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
-                      }`}
-                    >
-                      {sec === 0 ? 'Off' : `${sec}s`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+                />
+              </button>
+            </div>
+          )}
 
           {/* Now Playing Section */}
           {currentTrack && (
@@ -173,19 +104,9 @@ export const QueueModal: React.FC<QueueModalProps> = ({
           {/* User Queue */}
           {userQueue.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-3 px-2">
-                <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                  Next in Queue ({userQueue.length})
-                </h4>
-                {onClearQueue && (
-                  <button
-                    onClick={onClearQueue}
-                    className="text-xs font-bold text-zinc-400 hover:text-red-400 transition-colors"
-                  >
-                    Clear queue
-                  </button>
-                )}
-              </div>
+              <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 px-2">
+                Next in Queue
+              </h4>
               <div className="space-y-1 bg-zinc-900/50 rounded-xl p-2 border border-zinc-800/50">
                 {userQueue.map((track, idx) => (
                   <div
@@ -228,16 +149,19 @@ export const QueueModal: React.FC<QueueModalProps> = ({
             </div>
           )}
 
-          {/* Up Next (Main Playlist or Shuffled Queue - No Repeats) */}
+          {/* Up Next (Main Playlist or Shuffled Queue) */}
           {queue.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3 px-2">
                 <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                  {isShuffle ? 'Up Next (Shuffled)' : 'Up Next From List'}
+                  {isShuffle ? 'Up Next (Shuffled Queue)' : 'Up Next From List'}
                 </h4>
-                <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30">
-                  No Repeats
-                </span>
+                {isShuffle && (
+                  <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30">
+                    <Shuffle className="w-3 h-3" />
+                    Shuffled
+                  </span>
+                )}
               </div>
               <div className="space-y-1">
                 {queue.map((track) => (

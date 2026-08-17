@@ -26,7 +26,6 @@ import { Toast } from './components/Toast';
 import { CreatePlaylistModal } from './components/CreatePlaylistModal';
 import { AddToPlaylistModal } from './components/AddToPlaylistModal';
 import { AuthModal } from './components/AuthModal';
-import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { ExpandedNowPlayingModal } from './components/ExpandedNowPlayingModal';
 import { InstallAppModal } from './components/InstallAppModal';
 import {
@@ -148,29 +147,15 @@ export default function App() {
   const [shuffledOrder, setShuffledOrder] = useState<Track[]>([]);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
   const [isQueueOpen, setIsQueueOpen] = useState(false);
-  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [userQueue, setUserQueue] = useState<Track[]>([]);
   const [isAutoplay, setIsAutoplay] = useState(true);
-  // Track IDs played in the current listening pass/session so no song repeats until all are played
-  const [playedSessionTrackIds, setPlayedSessionTrackIds] = useState<string[]>([]);
 
   // Playlist Modals State
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
 
-  // Crossfade settings (persisted in localStorage)
-  const [crossfadeDuration, setCrossfadeDuration] = useState<number>(() => Storage.getCrossfade());
-
-  // Dual-Deck Audio Refs for seamless overlapping crossfade playback
-  const audioRefA = useRef<HTMLAudioElement | null>(null);
-  const audioRefB = useRef<HTMLAudioElement | null>(null);
-  const activeDeckRef = useRef<'A' | 'B'>('A');
-  const fadeVolRefA = useRef<number>(1.0);
-  const fadeVolRefB = useRef<number>(0.0);
-  const isCrossfadingRef = useRef<boolean>(false);
-  const crossfadeAnimFrameRef = useRef<number | null>(null);
-  // Guard: prevents duplicate crossfade triggers from rapid timeupdate events
-  const crossfadeTriggeredRef = useRef<boolean>(false);
+  // Audio Ref — rendered as a real DOM element below
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Chunked-streaming buffered progress (drives the grey "downloaded" bar)
   const [bufferedPercent, setBufferedPercent] = useState(0);
@@ -182,51 +167,9 @@ export default function App() {
   const trackPlayStart = useCallback((track: Track) => {
     setPlayCounts(Storage.incrementPlayCount(track.id));
     setRecentlyPlayedIds(Storage.addRecentlyPlayed(track.id));
-    setPlayedSessionTrackIds((prev) => (prev.includes(track.id) ? prev : [...prev, track.id]));
   }, []);
 
-  // Synchronize actual volume of both audio decks based on master volume, mute, and crossfade attenuation
-  const syncDeckVolumes = useCallback(() => {
-    const master = isMuted ? 0 : volume;
-    if (audioRefA.current) {
-      audioRefA.current.volume = Math.max(0, Math.min(1, master * fadeVolRefA.current));
-    }
-    if (audioRefB.current) {
-      audioRefB.current.volume = Math.max(0, Math.min(1, master * fadeVolRefB.current));
-    }
-  }, [volume, isMuted]);
 
-  // Cancel any active crossfade animation frame and reset fade levels to active deck
-  const cancelCrossfade = useCallback(() => {
-    if (crossfadeAnimFrameRef.current !== null) {
-      cancelAnimationFrame(crossfadeAnimFrameRef.current);
-      crossfadeAnimFrameRef.current = null;
-    }
-    isCrossfadingRef.current = false;
-    crossfadeTriggeredRef.current = false;
-    if (activeDeckRef.current === 'A') {
-      fadeVolRefA.current = 1.0;
-      fadeVolRefB.current = 0.0;
-      if (audioRefB.current) {
-        audioRefB.current.pause();
-        audioRefB.current.currentTime = 0;
-      }
-    } else {
-      fadeVolRefA.current = 0.0;
-      fadeVolRefB.current = 1.0;
-      if (audioRefA.current) {
-        audioRefA.current.pause();
-        audioRefA.current.currentTime = 0;
-      }
-    }
-    syncDeckVolumes();
-  }, [syncDeckVolumes]);
-
-  const handleCrossfadeChange = useCallback((seconds: number) => {
-    const clamped = Math.max(0, Math.min(12, seconds));
-    setCrossfadeDuration(clamped);
-    Storage.setCrossfade(clamped);
-  }, []);
 
   // Firebase Auth Observer & Real-time Playlist Listener
   useEffect(() => {
@@ -270,229 +213,99 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const handleClearUserQueue = useCallback(() => {
-    setUserQueue([]);
-    addToast('Queue cleared', 'info');
-  }, [addToast]);
-
-  // Stable "Up Next" list for the Queue modal — derived directly from current order context
-  const upNextQueue = useMemo(() => {
-    const userQueueIds = new Set(userQueue.map((t) => t.id));
-    if (isShuffle && shuffledOrder.length > 0) {
-      const currentIdx = shuffledOrder.findIndex((t) => t.id === currentTrack?.id);
-      const upcoming = currentIdx !== -1 ? shuffledOrder.slice(currentIdx + 1) : shuffledOrder.filter((t) => t.id !== currentTrack?.id);
-      return upcoming.filter(
-        (t) => !playedSessionTrackIds.includes(t.id) && !userQueueIds.has(t.id)
-      );
-    }
-
-    // Linear playlist mode
-    const currentIdx = tracks.findIndex((t) => t.id === currentTrack?.id);
-    const upcoming = currentIdx !== -1 ? tracks.slice(currentIdx + 1) : tracks;
-    return upcoming.filter(
-      (t) => t.id !== currentTrack?.id && !playedSessionTrackIds.includes(t.id) && !userQueueIds.has(t.id)
-    );
-  }, [isShuffle, shuffledOrder, tracks, currentTrack, playedSessionTrackIds, userQueue]);
-
-  // Helper to compute the next track based on userQueue, shuffle order, autoplay, and Safari compatibility
-  const getNextTrackCandidate = useCallback(
-    (peekOnly = false): Track | null => {
-      if (tracks.length === 0) return null;
-
-      let nextTrack: Track | null = null;
-
-      // 1. Explicit user queue has highest priority
-      if (userQueue.length > 0) {
-        nextTrack = userQueue[0];
-        if (!peekOnly) {
-          setUserQueue((prev) => prev.slice(1));
-        }
-      } else if (upNextQueue.length > 0) {
-        // 2. Play the exact top item shown in the "Up Next" queue list!
-        nextTrack = upNextQueue[0];
-      } else {
-        // 3. Queue / pass exhausted — reset session history & start fresh pass
-        let candidatePool = tracks.filter((t) => t.id !== currentTrack?.id);
-        if (candidatePool.length === 0) candidatePool = tracks;
-
-        if (!peekOnly) {
-          setPlayedSessionTrackIds(currentTrack ? [currentTrack.id] : []);
-        }
-
-        if (isShuffle) {
-          const freshOrder = currentTrack
-            ? [currentTrack, ...shuffleArray(tracks.filter((t) => t.id !== currentTrack.id))]
-            : shuffleArray(tracks);
-          if (!peekOnly) {
-            setShuffledOrder(freshOrder);
-          }
-          nextTrack = freshOrder.find((t) => t.id !== currentTrack?.id) || freshOrder[0] || null;
-        } else {
-          nextTrack = candidatePool[0] || null;
-        }
-      }
-
-      if (nextTrack && isSafariBrowser() && !isSafariPlayable(nextTrack.path)) {
-        const playableTracks = tracks.filter((t) => isSafariPlayable(t.path));
-        nextTrack =
-          playableTracks.length > 0
-            ? playableTracks[Math.floor(Math.random() * playableTracks.length)]
-            : null;
-      }
-
-      return nextTrack;
-    },
-    [tracks, currentTrack, isShuffle, userQueue, upNextQueue]
-  );
-
-  // Start crossfading between active deck and secondary deck smoothly
-  const startCrossfadeTransition = useCallback(
-    (targetTrack: Track, fadeSecs: number) => {
-      const outgoingDeckKey = activeDeckRef.current;
-      const incomingDeckKey = outgoingDeckKey === 'A' ? 'B' : 'A';
-      const outgoingAudio = outgoingDeckKey === 'A' ? audioRefA.current : audioRefB.current;
-      const incomingAudio = incomingDeckKey === 'A' ? audioRefA.current : audioRefB.current;
-
-      if (!incomingAudio) return;
-
-      if (crossfadeAnimFrameRef.current !== null) {
-        cancelAnimationFrame(crossfadeAnimFrameRef.current);
-        crossfadeAnimFrameRef.current = null;
-      }
-
-      isCrossfadingRef.current = true;
-
-      // Immediately switch active deck to incoming deck so UI reads incoming track state
-      activeDeckRef.current = incomingDeckKey;
-
-      // Prepare incoming deck starting cleanly from 0:00
-      incomingAudio.src = getStreamableAudioUrl(targetTrack);
-      incomingAudio.currentTime = 0;
-
-      // Set starting fade levels
-      if (incomingDeckKey === 'A') {
-        fadeVolRefA.current = 0.0;
-        fadeVolRefB.current = 1.0;
-      } else {
-        fadeVolRefA.current = 1.0;
-        fadeVolRefB.current = 0.0;
-      }
-      syncDeckVolumes();
-
-      // Update UI state immediately to the incoming track starting at 0:00
-      setCurrentTrack(targetTrack);
-      setCurrentTime(0);
-      setDuration(targetTrack.duration || 0);
-      trackPlayStart(targetTrack);
-      setBufferedPercent(0);
-      document.title = `${targetTrack.title} • ${targetTrack.artist || 'Spotify'}`;
-
-      // Update duration as soon as metadata loads for incoming track
-      incomingAudio.onloadedmetadata = () => {
-        setDuration(incomingAudio.duration || targetTrack.duration || 0);
-      };
-
-      // Start incoming audio playback
-      incomingAudio
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          const startTime = performance.now();
-          const durationMs = Math.max(400, fadeSecs * 1000);
-
-          const animateFade = (currentTimeMs: number) => {
-            const elapsed = currentTimeMs - startTime;
-            const progress = Math.min(1, elapsed / durationMs);
-
-            // Equal-power crossfade curve for smooth perceived constant loudness
-            const outgoingFade = Math.cos(progress * 0.5 * Math.PI);
-            const incomingFade = Math.sin(progress * 0.5 * Math.PI);
-
-            if (incomingDeckKey === 'A') {
-              fadeVolRefA.current = incomingFade;
-              fadeVolRefB.current = outgoingFade;
-            } else {
-              fadeVolRefA.current = outgoingFade;
-              fadeVolRefB.current = incomingFade;
-            }
-
-            syncDeckVolumes();
-
-            if (progress < 1) {
-              crossfadeAnimFrameRef.current = requestAnimationFrame(animateFade);
-            } else {
-              // Transition complete: stop outgoing audio cleanly
-              if (incomingDeckKey === 'A') {
-                fadeVolRefA.current = 1.0;
-                fadeVolRefB.current = 0.0;
-              } else {
-                fadeVolRefA.current = 0.0;
-                fadeVolRefB.current = 1.0;
-              }
-              if (outgoingAudio) {
-                outgoingAudio.pause();
-                outgoingAudio.currentTime = 0;
-              }
-              syncDeckVolumes();
-              isCrossfadingRef.current = false;
-              crossfadeTriggeredRef.current = false;
-              crossfadeAnimFrameRef.current = null;
-            }
-          };
-
-          crossfadeAnimFrameRef.current = requestAnimationFrame(animateFade);
-        })
-        .catch((err) => {
-          if (err?.name !== 'AbortError' && !err?.message?.includes('interrupted')) {
-            console.error('Crossfade audio playback error:', err);
-          }
-          if (incomingDeckKey === 'A') {
-            fadeVolRefA.current = 1.0;
-            fadeVolRefB.current = 0.0;
-          } else {
-            fadeVolRefA.current = 0.0;
-            fadeVolRefB.current = 1.0;
-          }
-          syncDeckVolumes();
-          isCrossfadingRef.current = false;
-          crossfadeTriggeredRef.current = false;
-        });
-    },
-    [syncDeckVolumes, trackPlayStart]
-  );
-
-  // Continuous Playback / Next Track handler
+  // Audio Ended Listener (Continuous Playback)
   const handleNextTrack = useCallback(() => {
     if (tracks.length === 0) return;
 
     let nextTrack: Track | null = null;
-    if (repeatMode === 'one' && currentTrack) {
-      nextTrack = currentTrack;
+
+    if (userQueue.length > 0) {
+      // Pop from queue
+      nextTrack = userQueue[0];
+      setUserQueue((prev) => prev.slice(1));
+    } else if (isAutoplay) {
+      // Random song from all tracks
+      const randomIndex = Math.floor(Math.random() * tracks.length);
+      nextTrack = tracks[randomIndex];
     } else {
-      nextTrack = getNextTrackCandidate();
+      const currentIndex = tracks.findIndex((t) => t.id === currentTrack?.id);
+
+      if (isShuffle) {
+        // Smart shuffle: if the currently playing track belongs to one of
+        // today's AI-generated mixes (Punjabi/Haryanvi/Hindi/Love), keep
+        // shuffling within that same mix instead of the whole library, so
+        // the next song stays contextually related to what's playing.
+        const currentCluster = currentTrack
+          ? aiPlaylists.find(
+              (pl) => pl.tracks.length >= 2 && pl.tracks.some((t) => t.id === currentTrack.id)
+            )
+          : undefined;
+
+        if (currentCluster) {
+          const recent = recentlyShuffledIdsRef.current;
+          let candidates = currentCluster.tracks.filter(
+            (t) => t.id !== currentTrack?.id && !recent.includes(t.id)
+          );
+          if (candidates.length === 0) {
+            // Exhausted this mix without repeats — allow repeats again,
+            // just avoid immediately replaying the current track.
+            candidates = currentCluster.tracks.filter((t) => t.id !== currentTrack?.id);
+          }
+          nextTrack =
+            candidates.length > 0
+              ? candidates[Math.floor(Math.random() * candidates.length)]
+              : currentCluster.tracks[0];
+        } else {
+          // No AI mix match (or no Gemini key configured yet) — fall back
+          // to the stable full-library shuffled order, advancing through
+          // it rather than re-randomizing on every track change. Only
+          // reshuffles (a fresh pass) once we've made it all the way
+          // through the current one.
+          const order = shuffledOrder.length > 0 ? shuffledOrder : tracks;
+          const posInOrder = order.findIndex((t) => t.id === currentTrack?.id);
+          const isLastInPass = posInOrder === -1 || posInOrder >= order.length - 1;
+          if (isLastInPass) {
+            const freshOrder: Track[] = shuffleArray(tracks);
+            setShuffledOrder(freshOrder);
+            nextTrack = freshOrder.length > 0 ? freshOrder[0] : null;
+          } else {
+            nextTrack = order[posInOrder + 1];
+          }
+        }
+
+        if (nextTrack) {
+          const recent = recentlyShuffledIdsRef.current;
+          recentlyShuffledIdsRef.current = [nextTrack.id, ...recent].slice(0, 8);
+        }
+      } else {
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % tracks.length : 0;
+        nextTrack = tracks[nextIndex];
+      }
     }
 
-    if (!nextTrack) return;
+    // Safari (iOS/macOS) has no decoder for .ogg or .flac at all, no matter
+    // what headers the server sends — skip straight past those instead of
+    // landing on a track that will silently fail to play.
+    if (nextTrack && isSafariBrowser() && !isSafariPlayable(nextTrack.path)) {
+      const playableTracks = tracks.filter((t) => isSafariPlayable(t.path));
+      nextTrack = playableTracks.length > 0
+        ? playableTracks[Math.floor(Math.random() * playableTracks.length)]
+        : null;
+    }
 
-    // Use crossfade if enabled and currently playing
-    if (crossfadeDuration > 0 && isPlaying) {
-      startCrossfadeTransition(nextTrack, Math.min(crossfadeDuration, 4));
-    } else {
-      cancelCrossfade();
+    if (nextTrack) {
       setCurrentTrack(nextTrack);
       trackPlayStart(nextTrack);
       setBufferedPercent(0);
-
-      const activeAudio = activeDeckRef.current === 'A' ? audioRefA.current : audioRefB.current;
-      if (activeAudio) {
-        activeAudio.src = getStreamableAudioUrl(nextTrack);
-        activeAudio.currentTime = 0;
-        activeAudio.load();
-        activeAudio
+      if (audioRef.current) {
+        audioRef.current.src = getStreamableAudioUrl(nextTrack);
+        audioRef.current.currentTime = 0;
+        audioRef.current.load();
+        audioRef.current
           .play()
           .then(() => {
             setIsPlaying(true);
-            document.title = `${nextTrack!.title} • ${nextTrack!.artist || 'Spotify'}`;
+            document.title = `${nextTrack.title} • ${nextTrack.artist || 'Spotify'}`;
           })
           .catch((err) => {
             if (err?.name !== 'AbortError' && !err?.message?.includes('interrupted')) {
@@ -501,165 +314,85 @@ export default function App() {
           });
       }
     }
-  }, [
-    tracks,
-    repeatMode,
-    currentTrack,
-    getNextTrackCandidate,
-    crossfadeDuration,
-    isPlaying,
-    startCrossfadeTransition,
-    cancelCrossfade,
-    trackPlayStart,
-  ]);
+  }, [tracks, currentTrack, isShuffle, shuffledOrder, userQueue, isAutoplay, trackPlayStart, aiPlaylists]);
 
-  // Unified audio listeners for both decks
+  // Initialize HTML5 Audio Element event listeners
+  // The <audio> element itself is rendered in the JSX below (required for iOS Safari)
   useEffect(() => {
-    const audioA = audioRefA.current;
-    const audioB = audioRefB.current;
-    if (!audioA || !audioB) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-    const handleDeckTimeUpdate = (deck: 'A' | 'B') => {
-      const activeDeck = activeDeckRef.current;
-      if (deck === activeDeck) {
-        const audio = deck === 'A' ? audioA : audioB;
-        setCurrentTime(audio.currentTime);
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
 
-        // Automatic end-of-track crossfade trigger
-        // Use crossfadeTriggeredRef to prevent this from firing multiple times per track
-        if (
-          crossfadeDuration > 0 &&
-          !isCrossfadingRef.current &&
-          !crossfadeTriggeredRef.current &&
-          audio.duration > 0 &&
-          audio.duration - audio.currentTime <= crossfadeDuration &&
-          audio.duration - audio.currentTime > 0.3
-        ) {
-          // Mark as triggered immediately to prevent race condition across rapid timeupdate events
-          crossfadeTriggeredRef.current = true;
-          isCrossfadingRef.current = true;
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration || 0);
+    };
 
-          let nextTrack: Track | null = null;
-          if (repeatMode === 'one' && currentTrack) {
-            nextTrack = currentTrack;
-          } else {
-            // Use peekOnly=true to look ahead without mutating queue state here;
-            // startCrossfadeTransition will call getNextTrackCandidate(false) internally
-            nextTrack = getNextTrackCandidate(true);
-          }
-
-          if (nextTrack) {
-            // Dequeue properly now that we've committed
-            if (repeatMode !== 'one') {
-              getNextTrackCandidate(false);
-            }
-            startCrossfadeTransition(nextTrack, crossfadeDuration);
-          } else {
-            // No next track — reset guards
-            crossfadeTriggeredRef.current = false;
-            isCrossfadingRef.current = false;
-          }
+    const handleProgress = () => {
+      try {
+        if (audio.buffered.length > 0 && audio.duration) {
+          const end = audio.buffered.end(audio.buffered.length - 1);
+          setBufferedPercent(Math.min(100, (end / audio.duration) * 100));
         }
+      } catch {
+        // buffered ranges can throw briefly during src swaps — ignore
       }
     };
 
-    const handleDeckLoadedMetadata = (deck: 'A' | 'B') => {
-      if (deck === activeDeckRef.current) {
-        const audio = deck === 'A' ? audioA : audioB;
-        setDuration(audio.duration || 0);
-      }
+    const handleAudioError = (e: Event) => {
+      console.error('Audio playback error:', e);
+      addToast('Error loading audio stream. Skipping to next track...', 'error');
+      setIsPlaying(false);
+      setTimeout(() => {
+        handleNextTrack();
+      }, 1500);
     };
 
-    const handleDeckProgress = (deck: 'A' | 'B') => {
-      if (deck === activeDeckRef.current) {
-        const audio = deck === 'A' ? audioA : audioB;
-        try {
-          if (audio.buffered.length > 0 && audio.duration) {
-            const end = audio.buffered.end(audio.buffered.length - 1);
-            setBufferedPercent(Math.min(100, (end / audio.duration) * 100));
-          }
-        } catch {
-          // ignore transient errors
-        }
-      }
-    };
-
-    const handleDeckError = (deck: 'A' | 'B', e: Event) => {
-      if (deck === activeDeckRef.current && !isCrossfadingRef.current) {
-        console.error(`Audio error on deck ${deck}:`, e);
-        addToast('Error loading audio stream. Skipping to next track...', 'error');
-        setIsPlaying(false);
-        setTimeout(() => {
-          handleNextTrack();
-        }, 1200);
-      }
-    };
-
-    const handleDeckEnded = (deck: 'A' | 'B') => {
-      // If we are already crossfading or this was the outgoing deck, ignore ended event
-      if (deck === activeDeckRef.current && !isCrossfadingRef.current) {
-        if (repeatMode === 'one' && currentTrack) {
-          const audio = deck === 'A' ? audioA : audioB;
-          audio.currentTime = 0;
-          audio.play().catch((err) => {
-            if (err?.name !== 'AbortError' && !err?.message?.includes('interrupted')) {
-              console.error('Repeat play error:', err);
-            }
-          });
-        } else {
-          handleNextTrack();
-        }
-      }
-    };
-
-    const onTimeA = () => handleDeckTimeUpdate('A');
-    const onTimeB = () => handleDeckTimeUpdate('B');
-    const onMetaA = () => handleDeckLoadedMetadata('A');
-    const onMetaB = () => handleDeckLoadedMetadata('B');
-    const onProgA = () => handleDeckProgress('A');
-    const onProgB = () => handleDeckProgress('B');
-    const onErrA = (e: Event) => handleDeckError('A', e);
-    const onErrB = (e: Event) => handleDeckError('B', e);
-    const onEndA = () => handleDeckEnded('A');
-    const onEndB = () => handleDeckEnded('B');
-
-    audioA.addEventListener('timeupdate', onTimeA);
-    audioB.addEventListener('timeupdate', onTimeB);
-    audioA.addEventListener('loadedmetadata', onMetaA);
-    audioB.addEventListener('loadedmetadata', onMetaB);
-    audioA.addEventListener('progress', onProgA);
-    audioB.addEventListener('progress', onProgB);
-    audioA.addEventListener('error', onErrA);
-    audioB.addEventListener('error', onErrB);
-    audioA.addEventListener('ended', onEndA);
-    audioB.addEventListener('ended', onEndB);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('progress', handleProgress);
+    audio.addEventListener('error', handleAudioError);
 
     return () => {
-      audioA.removeEventListener('timeupdate', onTimeA);
-      audioB.removeEventListener('timeupdate', onTimeB);
-      audioA.removeEventListener('loadedmetadata', onMetaA);
-      audioB.removeEventListener('loadedmetadata', onMetaB);
-      audioA.removeEventListener('progress', onProgA);
-      audioB.removeEventListener('progress', onProgB);
-      audioA.removeEventListener('error', onErrA);
-      audioB.removeEventListener('error', onErrB);
-      audioA.removeEventListener('ended', onEndA);
-      audioB.removeEventListener('ended', onEndB);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('progress', handleProgress);
+      audio.removeEventListener('error', handleAudioError);
     };
-  }, [
-    crossfadeDuration,
-    repeatMode,
-    currentTrack,
-    getNextTrackCandidate,
-    startCrossfadeTransition,
-    handleNextTrack,
-    addToast,
-  ]);
+  }, [addToast, handleNextTrack]);
 
-  // Sync volume state changes
+  // Audio Ended Listener
   useEffect(() => {
-    syncDeckVolumes();
-  }, [syncDeckVolumes]);
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleEnded = () => {
+      if (repeatMode === 'one' && currentTrack) {
+        audio.currentTime = 0;
+        audio.play().catch((err) => {
+          if (err?.name !== 'AbortError' && !err?.message?.includes('interrupted')) {
+            console.error('Repeat play error:', err);
+          }
+        });
+      } else {
+        handleNextTrack();
+      }
+    };
+
+    audio.addEventListener('ended', handleEnded);
+    return () => {
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [currentTrack, repeatMode, isShuffle, tracks, handleNextTrack]);
+
+  // Sync Volume & Mute with Audio Element
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+    }
+  }, [volume, isMuted]);
 
   // Save Last Played Track position periodically
   useEffect(() => {
@@ -814,8 +547,8 @@ export default function App() {
       const track = tracks.find((t) => t.id === lastPlayed.trackId);
       if (track) {
         setCurrentTrack(track);
-        if (audioRefA.current) {
-          audioRefA.current.src = getStreamableAudioUrl(track);
+        if (audioRef.current) {
+          audioRef.current.src = getStreamableAudioUrl(track);
         }
       }
     } else if (tracks.length > 0 && !currentTrack) {
@@ -836,30 +569,17 @@ export default function App() {
   // Play Specific Track
   const handlePlayTrack = useCallback(
     (track: Track, customQueue?: Track[]) => {
-      const activeAudio = activeDeckRef.current === 'A' ? audioRefA.current : audioRefB.current;
-      if (!activeAudio) return;
+      const audio = audioRef.current;
+      if (!audio) return;
 
-      if (customQueue && customQueue.length > 0) {
-        const trackIdx = customQueue.findIndex((t) => t.id === track.id);
-        if (trackIdx !== -1) {
-          setUserQueue(customQueue.slice(trackIdx + 1));
-        }
-      }
-
-      // If shuffle is active, sync shuffledOrder so this track is first and rest are shuffled after it
-      if (isShuffle) {
-        const list = customQueue && customQueue.length > 0 ? customQueue : tracks;
-        const remaining = list.filter((t) => t.id !== track.id);
-        setShuffledOrder([track, ...shuffleArray(remaining)]);
-      }
+      let willPlay = false;
 
       if (currentTrack?.id === track.id) {
         if (isPlaying) {
-          cancelCrossfade();
-          activeAudio.pause();
+          audio.pause();
           setIsPlaying(false);
         } else {
-          activeAudio
+          audio
             .play()
             .then(() => {
               setIsPlaying(true);
@@ -870,49 +590,51 @@ export default function App() {
                 addToast('Error starting audio playback.', 'error');
               }
             });
+          willPlay = true;
         }
-        return;
-      }
-
-      if (isSafariBrowser() && !isSafariPlayable(track.path)) {
+      } else if (isSafariBrowser() && !isSafariPlayable(track.path)) {
+        // Safari has no decoder for .ogg/.flac on any platform — bail out
+        // with a clear message instead of loading a track that will never
+        // actually play.
         addToast(`"${track.title}" isn't a format Safari can play. Try it in Chrome instead.`, 'error');
         return;
-      }
-
-      // If already playing and crossfade duration > 0, do a smooth crossfade transition
-      if (isPlaying && crossfadeDuration > 0) {
-        startCrossfadeTransition(track, Math.min(crossfadeDuration, 3));
       } else {
-        cancelCrossfade();
         setCurrentTrack(track);
         trackPlayStart(track);
         setBufferedPercent(0);
-
-        const currentActive = activeDeckRef.current === 'A' ? audioRefA.current : audioRefB.current;
-        if (currentActive) {
-          currentActive.src = getStreamableAudioUrl(track);
-          currentActive.currentTime = 0;
-          currentActive.load();
-          currentActive
-            .play()
-            .then(() => {
-              setIsPlaying(true);
-              document.title = `${track.title} • ${track.artist || 'Spotify'}`;
-            })
-            .catch((err) => {
-              if (!isBenignPlayError(err)) {
-                console.error('Playback failed:', err);
-                addToast(`Failed to play ${track.title}.`, 'error');
-              }
-              setIsPlaying(false);
-            });
+        audio.src = getStreamableAudioUrl(track);
+        audio.currentTime = 0;
+        
+        if (customQueue && customQueue.length > 0) {
+          const trackIdx = customQueue.findIndex((t) => t.id === track.id);
+          if (trackIdx !== -1) {
+            setUserQueue(customQueue.slice(trackIdx + 1));
+          }
         }
+
+        audio.load();
+        audio
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            document.title = `${track.title} • ${track.artist || 'Spotify'}`;
+          })
+          .catch((err) => {
+            if (!isBenignPlayError(err)) {
+              console.error('Playback failed:', err);
+              addToast(`Failed to play ${track.title}.`, 'error');
+            }
+            setIsPlaying(false);
+          });
+        willPlay = true;
       }
 
-      setMaximizedInitialTab('art');
-      setIsMaximizedPlayerOpen(true);
+      if (willPlay) {
+        setMaximizedInitialTab('art');
+        setIsMaximizedPlayerOpen(true);
+      }
     },
-    [currentTrack, isPlaying, addToast, trackPlayStart, crossfadeDuration, startCrossfadeTransition, cancelCrossfade]
+    [currentTrack, isPlaying, addToast, trackPlayStart]
   );
 
   const handleAddToQueue = useCallback((track: Track) => {
@@ -922,8 +644,8 @@ export default function App() {
 
   // Play / Pause Toggle
   const handleTogglePlayPause = useCallback(() => {
-    const activeAudio = activeDeckRef.current === 'A' ? audioRefA.current : audioRefB.current;
-    if (!activeAudio) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
     if (!currentTrack && tracks.length > 0) {
       handlePlayTrack(tracks[0]);
@@ -931,12 +653,10 @@ export default function App() {
     }
 
     if (isPlaying) {
-      cancelCrossfade();
-      if (audioRefA.current) audioRefA.current.pause();
-      if (audioRefB.current) audioRefB.current.pause();
+      audio.pause();
       setIsPlaying(false);
     } else {
-      activeAudio
+      audio
         .play()
         .then(() => {
           setIsPlaying(true);
@@ -948,15 +668,15 @@ export default function App() {
           }
         });
     }
-  }, [currentTrack, isPlaying, tracks, handlePlayTrack, addToast, cancelCrossfade]);
+  }, [currentTrack, isPlaying, tracks, handlePlayTrack, addToast]);
 
   // Previous Track Logic
   const handlePrevTrack = useCallback(() => {
     if (tracks.length === 0) return;
 
-    const activeAudio = activeDeckRef.current === 'A' ? audioRefA.current : audioRefB.current;
-    if (activeAudio && activeAudio.currentTime > 3) {
-      activeAudio.currentTime = 0;
+    const audio = audioRef.current;
+    if (audio && audio.currentTime > 3) {
+      audio.currentTime = 0;
       return;
     }
 
@@ -967,13 +687,11 @@ export default function App() {
 
   // Seek Progress
   const handleSeek = useCallback((time: number) => {
-    cancelCrossfade();
-    const activeAudio = activeDeckRef.current === 'A' ? audioRefA.current : audioRefB.current;
-    if (activeAudio) {
-      activeAudio.currentTime = time;
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
     }
     setCurrentTime(time);
-  }, [cancelCrossfade]);
+  }, []);
 
   // Volume Change
   const handleVolumeChange = useCallback((newVol: number) => {
@@ -997,18 +715,16 @@ export default function App() {
     setIsShuffle((prev) => {
       const nextShuffle = !prev;
       if (nextShuffle) {
-        const remaining = tracks.filter((t) => t.id !== currentTrack?.id);
-        const newOrder = currentTrack ? [currentTrack, ...shuffleArray(remaining)] : shuffleArray(tracks);
-        setShuffledOrder(newOrder);
+        setShuffledOrder(shuffleArray(tracks));
         recentlyShuffledIdsRef.current = [];
         setIsQueueOpen(true);
-        addToast('Shuffle On — Up Next Queue Synced', 'info');
+        addToast('Shuffle On — Opening Up Next Queue', 'info');
       } else {
         addToast('Shuffle Off', 'info');
       }
       return nextShuffle;
     });
-  }, [addToast, tracks, currentTrack]);
+  }, [addToast, tracks]);
 
   const handleToggleRepeat = useCallback(() => {
     const modes: RepeatMode[] = ['off', 'all', 'one'];
@@ -1158,15 +874,13 @@ export default function App() {
         handleTogglePlayPause();
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
-        const activeAudio = activeDeckRef.current === 'A' ? audioRefA.current : audioRefB.current;
-        if (activeAudio) {
-          handleSeek(Math.min(activeAudio.currentTime + 5, duration));
+        if (audioRef.current) {
+          handleSeek(Math.min(audioRef.current.currentTime + 5, duration));
         }
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        const activeAudio = activeDeckRef.current === 'A' ? audioRefA.current : audioRefB.current;
-        if (activeAudio) {
-          handleSeek(Math.max(activeAudio.currentTime - 5, 0));
+        if (audioRef.current) {
+          handleSeek(Math.max(audioRef.current.currentTime - 5, 0));
         }
       } else if (e.code === 'KeyM') {
         e.preventDefault();
@@ -1239,110 +953,19 @@ export default function App() {
     };
   }, [handleTogglePlayPause, handlePrevTrack, handleNextTrack, handleSeek]);
 
-  // Global Spotify-style Keyboard Shortcuts Listener
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInput =
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable);
-
-      if (isInput) return;
-
-      if (e.key === '?') {
-        e.preventDefault();
-        setIsShortcutsOpen((prev) => !prev);
-        return;
-      }
-
-      if (e.key === 'Escape') {
-        setIsShortcutsOpen(false);
-        setIsQueueOpen(false);
-        setIsMaximizedPlayerOpen(false);
-        return;
-      }
-
-      if (e.code === 'Space' || e.key === 'k') {
-        e.preventDefault();
-        handleTogglePlayPause();
-        return;
-      }
-
-      if (e.key === 'n' || (e.ctrlKey && e.key === 'ArrowRight')) {
-        e.preventDefault();
-        handleNextTrack();
-        return;
-      }
-
-      if (e.key === 'p' || (e.ctrlKey && e.key === 'ArrowLeft')) {
-        e.preventDefault();
-        handlePrevTrack();
-        return;
-      }
-
-      if (e.key === 'm') {
-        e.preventDefault();
-        handleToggleMute();
-        return;
-      }
-
-      if (e.key === 's') {
-        e.preventDefault();
-        handleToggleShuffle();
-        return;
-      }
-
-      if (e.key === 'r') {
-        e.preventDefault();
-        handleToggleRepeat();
-        return;
-      }
-
-      if (e.key === 'l' && currentTrack) {
-        e.preventDefault();
-        handleToggleLike(currentTrack.id, { stopPropagation: () => {} } as any);
-        return;
-      }
-
-      if (e.key === 'q') {
-        e.preventDefault();
-        setIsQueueOpen((prev) => !prev);
-        return;
-      }
-
-      if (e.key === 'f') {
-        e.preventDefault();
-        setIsMaximizedPlayerOpen((prev) => !prev);
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    handleTogglePlayPause,
-    handleNextTrack,
-    handlePrevTrack,
-    handleToggleMute,
-    handleToggleShuffle,
-    handleToggleRepeat,
-    handleToggleLike,
-    currentTrack,
-  ]);
+  // Stable "Up Next" list for the Queue modal — derived from the one
+  // pre-shuffled order (not recomputed/re-randomized on every render).
+  const upNextQueue = useMemo(() => {
+    const rest = (isShuffle && shuffledOrder.length > 0 ? shuffledOrder : tracks).filter(
+      (t) => t.id !== currentTrack?.id
+    );
+    return rest;
+  }, [isShuffle, shuffledOrder, tracks, currentTrack]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-white font-sans overflow-hidden select-none">
-      {/* Dual Audio Decks for Crossfade */}
       <audio
-        ref={audioRefA}
-        playsInline
-        preload="auto"
-        style={{ display: 'none' }}
-      />
-      <audio
-        ref={audioRefB}
+        ref={audioRef}
         playsInline
         preload="auto"
         style={{ display: 'none' }}
@@ -1358,10 +981,6 @@ export default function App() {
           onRequestCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
           activePlaylistId={activePlaylistId}
           setActivePlaylistId={setActivePlaylistId}
-          onOpenTodaysMix={() => {
-            setActiveTab('home');
-            setActivePlaylistId(null);
-          }}
         />
 
         <div className="flex-1 flex flex-col min-w-0 bg-[#121212] overflow-hidden">
@@ -1375,7 +994,6 @@ export default function App() {
             onLogOut={handleLogOut}
             onOpenInstallModal={() => setIsInstallModalOpen(true)}
             onOpenAdmin={() => setActiveTab('admin')}
-            onOpenShortcuts={() => setIsShortcutsOpen(true)}
           />
 
           <MainView
@@ -1429,8 +1047,6 @@ export default function App() {
         isMuted={isMuted}
         isShuffle={isShuffle}
         repeatMode={repeatMode}
-        crossfadeDuration={crossfadeDuration}
-        onCrossfadeChange={handleCrossfadeChange}
         isLiked={currentTrack ? likedTrackIds.includes(currentTrack.id) : false}
         activeTab={activeTab}
         onPlayPause={handleTogglePlayPause}
@@ -1466,8 +1082,6 @@ export default function App() {
         isMuted={isMuted}
         isShuffle={isShuffle}
         repeatMode={repeatMode}
-        crossfadeDuration={crossfadeDuration}
-        onCrossfadeChange={handleCrossfadeChange}
         isLiked={currentTrack ? likedTrackIds.includes(currentTrack.id) : false}
         initialTab={maximizedInitialTab}
         onPlayPause={handleTogglePlayPause}
@@ -1481,14 +1095,10 @@ export default function App() {
         onToggleLike={handleToggleLike}
         onOpenQueue={() => setIsQueueOpen(true)}
         userQueue={userQueue}
-        queue={upNextQueue}
-        onClearQueue={handleClearUserQueue}
         isAutoplay={isAutoplay}
         onToggleAutoplay={() => setIsAutoplay(!isAutoplay)}
         onRemoveFromQueue={(index) => setUserQueue((prev) => prev.filter((_, i) => i !== index))}
         onPlayTrack={handlePlayTrack}
-        onAddToPlaylist={(track) => setAddToPlaylistTrack(track)}
-        onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
 
       {/* Queue Drawer Modal */}
@@ -1497,10 +1107,7 @@ export default function App() {
         onClose={() => setIsQueueOpen(false)}
         queue={upNextQueue}
         userQueue={userQueue}
-        onClearQueue={handleClearUserQueue}
         currentTrack={currentTrack}
-        crossfadeDuration={crossfadeDuration}
-        onCrossfadeChange={handleCrossfadeChange}
         onPlayTrack={(track) => {
           handlePlayTrack(track);
           setIsQueueOpen(false);
@@ -1544,12 +1151,6 @@ export default function App() {
           addToast('App installed! Check your home screen or app list.', 'success');
           setDeferredInstallPrompt(null);
         }}
-      />
-
-      {/* Keyboard Shortcuts Hub Overlay */}
-      <KeyboardShortcutsModal
-        isOpen={isShortcutsOpen}
-        onClose={() => setIsShortcutsOpen(false)}
       />
     </div>
   );
