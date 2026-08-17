@@ -11,6 +11,7 @@ const KEYS = {
   RECENTLY_PLAYED: 'spotify_recently_played_v1',
   HF_ADMIN_KEY: 'spotify_hf_admin_key_v1',
   GEMINI_KEY: 'spotify_gemini_key_v1',
+  CROSSFADE: 'spotify_crossfade_v1',
 };
 
 export const Storage = {
@@ -210,6 +211,24 @@ export const Storage = {
       }
     } catch (e) {
       console.error('Failed to save Gemini key', e);
+    }
+  },
+
+  // ---- Crossfade Transition Duration (in seconds, 0 = disabled) ----
+  getCrossfade(): number {
+    try {
+      const val = localStorage.getItem(KEYS.CROSSFADE);
+      return val !== null ? parseFloat(val) : 4; // default 4 seconds for smooth transitions
+    } catch {
+      return 4;
+    }
+  },
+
+  setCrossfade(seconds: number): void {
+    try {
+      localStorage.setItem(KEYS.CROSSFADE, seconds.toString());
+    } catch (e) {
+      console.error('Failed to save crossfade duration', e);
     }
   }
 };

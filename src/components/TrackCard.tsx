@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, Heart, Music, Disc, Plus, ListPlus } from 'lucide-react';
+import { Play, Pause, Heart, Music, ListPlus, Plus } from 'lucide-react';
 import { Track } from '../types';
 import { generateCoverArt } from '../utils/audioUtils';
 import { useLongPress } from '../utils/useLongPress';
@@ -34,106 +34,103 @@ export const TrackCard: React.FC<TrackCardProps> = ({
     <div
       onClick={() => onPlay(track)}
       {...longPress}
-      className="group relative bg-[#181818] hover:bg-[#282828] p-3 sm:p-4 rounded-xl transition-all duration-300 cursor-pointer flex flex-col gap-3 border border-transparent hover:border-zinc-700/40 shadow-md hover:shadow-xl active:scale-95 sm:active:scale-100"
+      className="group relative bg-[#181818] hover:bg-[#282828] p-3 rounded-md cursor-pointer transition-colors duration-200 flex flex-col gap-3"
     >
-      {/* Cover Art Container */}
-      <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-zinc-900 shadow-md">
+      {/* Cover Art */}
+      <div className="relative aspect-square w-full rounded-md overflow-hidden shadow-2xl">
         <img
           src={track.coverArtUrl || fallbackSvg}
           alt={track.title}
-          onError={(e) => {
-            e.currentTarget.src = fallbackSvg;
-          }}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => { e.currentTarget.src = fallbackSvg; }}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           loading="lazy"
         />
 
-        {/* Playing Overlay / Equalizer */}
+        {/* Equalizer overlay when playing */}
         {isCurrentTrack && (
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             {isPlaying ? (
-              <div className="flex items-end gap-1 h-6">
-                <span className="w-1.5 bg-[#1DB954] rounded-full animate-bounce [animation-delay:-0.3s] h-full" />
-                <span className="w-1.5 bg-[#1DB954] rounded-full animate-bounce [animation-delay:-0.15s] h-4" />
-                <span className="w-1.5 bg-[#1DB954] rounded-full animate-bounce h-6" />
-                <span className="w-1.5 bg-[#1DB954] rounded-full animate-bounce [animation-delay:-0.4s] h-3" />
+              <div className="flex items-end gap-[3px] h-6">
+                <span className="w-[3px] bg-[#1DB954] rounded-full eq-bar-1" style={{ height: '100%', transformOrigin: 'bottom' }} />
+                <span className="w-[3px] bg-[#1DB954] rounded-full eq-bar-2" style={{ height: '75%', transformOrigin: 'bottom' }} />
+                <span className="w-[3px] bg-[#1DB954] rounded-full eq-bar-3" style={{ height: '100%', transformOrigin: 'bottom' }} />
+                <span className="w-[3px] bg-[#1DB954] rounded-full eq-bar-4" style={{ height: '55%', transformOrigin: 'bottom' }} />
               </div>
             ) : (
-              <Disc className="w-8 h-8 text-[#1DB954]" />
+              <Music className="w-7 h-7 text-[#1DB954]" />
             )}
           </div>
         )}
 
-        {/* Hover / Active Green Play Button Overlay */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPlay(track);
-          }}
-          className={`absolute bottom-3 right-3 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black flex items-center justify-center shadow-2xl transition-all duration-300 transform ${
+        {/* Play button — appears on hover */}
+        <div
+          className={`absolute bottom-2 right-2 transition-all duration-200 ${
             isCurrentTrack
-              ? 'opacity-100 translate-y-0 scale-100'
-              : 'opacity-100 sm:opacity-0 translate-y-0 sm:translate-y-3 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-105'
+              ? 'translate-y-0 opacity-100'
+              : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100'
           }`}
-          aria-label={isCurrentTrack && isPlaying ? 'Pause' : 'Play'}
         >
-          {isCurrentTrack && isPlaying ? (
-            <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-black" />
-          ) : (
-            <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-black translate-x-0.5" />
-          )}
-        </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onPlay(track); }}
+            className="w-10 h-10 rounded-full bg-[#1DB954] hover:bg-[#1ed760] hover:scale-105 active:scale-95 text-black flex items-center justify-center shadow-2xl transition-all duration-150"
+            aria-label={isCurrentTrack && isPlaying ? 'Pause' : 'Play'}
+          >
+            {isCurrentTrack && isPlaying
+              ? <Pause className="w-4 h-4 fill-black" />
+              : <Play className="w-4 h-4 fill-black translate-x-0.5" />}
+          </button>
+        </div>
 
-        {/* Top Badges / Actions: Add to Playlist & Heart Like */}
-        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+        {/* Top-right action buttons */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {onAddToQueue && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddToQueue(track);
-              }}
-              className="p-1.5 rounded-full bg-black/50 backdrop-blur-md text-white/80 opacity-100 sm:opacity-0 group-hover:opacity-100 hover:text-white hover:bg-black/80 transition-all"
+              onClick={(e) => { e.stopPropagation(); onAddToQueue(track); }}
+              className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/80 transition-colors"
               title="Add to Queue"
             >
-              <ListPlus className="w-4 h-4" />
+              <ListPlus className="w-3.5 h-3.5" />
             </button>
           )}
           {onAddToPlaylist && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddToPlaylist(track);
-              }}
-              className="p-1.5 rounded-full bg-black/50 backdrop-blur-md text-white/80 opacity-100 sm:opacity-0 group-hover:opacity-100 hover:text-white hover:bg-black/80 transition-all"
+              onClick={(e) => { e.stopPropagation(); onAddToPlaylist(track); }}
+              className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/80 transition-colors"
               title="Add to Playlist"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
             </button>
           )}
-
-          <button
-            onClick={(e) => onToggleLike(track.id, e)}
-            className={`p-1.5 rounded-full backdrop-blur-md transition-all ${
-              isLiked
-                ? 'bg-black/60 text-[#1DB954] opacity-100'
-                : 'bg-black/40 text-white/70 opacity-100 sm:opacity-0 group-hover:opacity-100 hover:text-white hover:bg-black/60'
-            }`}
-            title={isLiked ? 'Remove from Liked' : 'Save to Liked'}
-          >
-            <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#1DB954]' : ''}`} />
-          </button>
         </div>
+
+        {/* Persistent heart when liked */}
+        {isLiked && (
+          <div className="absolute top-2 left-2">
+            <div className="w-6 h-6 rounded-full bg-black/60 flex items-center justify-center">
+              <Heart className="w-3 h-3 fill-[#1DB954] text-[#1DB954]" />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Track Details */}
+      {/* Track info */}
       <div className="flex flex-col gap-0.5 min-w-0">
-        <h3 className={`font-bold text-sm truncate ${isCurrentTrack ? 'text-[#1DB954]' : 'text-white'}`}>
+        <h3 className={`text-sm font-semibold truncate leading-tight ${isCurrentTrack ? 'text-[#1DB954]' : 'text-white'}`}>
           {track.title}
         </h3>
-        <p className="text-xs text-zinc-400 truncate font-medium">
-          {track.artist || 'CoolJaat'}
-        </p>
+        <p className="text-xs text-zinc-400 truncate">{track.artist || 'Unknown Artist'}</p>
       </div>
+
+      {/* Like button — hover only, separate from image */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleLike(track.id, e); }}
+        className={`absolute top-2 left-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center transition-all ${
+          isLiked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        } hover:scale-110 active:scale-90`}
+        title={isLiked ? 'Remove from Liked' : 'Save to Liked'}
+      >
+        <Heart className={`w-3.5 h-3.5 transition-colors ${isLiked ? 'fill-[#1DB954] text-[#1DB954]' : 'text-white'}`} />
+      </button>
 
       {menuPos && (
         <TrackContextMenu

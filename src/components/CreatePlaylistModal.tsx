@@ -1,25 +1,16 @@
 import React, { useState } from 'react';
-import { X, Music, Sparkles } from 'lucide-react';
+import { X, Music } from 'lucide-react';
 
 interface CreatePlaylistModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreatePlaylist: (name: string, description?: string) => void;
+  onCreate: (name: string, description?: string) => void;
 }
-
-const PRESET_NAMES = [
-  'Chill Lofi Beats',
-  'Workout Energy',
-  'Focus & Code',
-  'Late Night Drive',
-  'Acoustic Sunset',
-  'Weekend Party',
-];
 
 export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
   isOpen,
   onClose,
-  onCreatePlaylist,
+  onCreate,
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -28,109 +19,72 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      onCreatePlaylist(name.trim(), description.trim());
-      setName('');
-      setDescription('');
-      onClose();
-    }
-  };
-
-  const handleSelectPreset = (preset: string) => {
-    setName(preset);
+    if (!name.trim()) return;
+    onCreate(name.trim(), description.trim());
+    setName('');
+    setDescription('');
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div
-        className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#1DB954] to-emerald-400 flex items-center justify-center text-black font-bold">
-              <Music className="w-5 h-5 text-black" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 select-none">
+      <div className="relative w-full max-w-md bg-[#282828] border border-zinc-700/80 rounded-2xl shadow-2xl overflow-hidden text-white p-6">
+        <div className="flex items-center justify-between pb-4 border-b border-zinc-700/60 mb-5">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-full bg-[#1DB954]/20 text-[#1DB954]">
+              <Music className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-lg font-black text-white tracking-tight">Create Custom Playlist</h3>
-              <p className="text-xs text-zinc-400">Organize your favorite songs</p>
-            </div>
+            <h2 className="text-lg font-bold">Create New Playlist</h2>
           </div>
-
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-white p-2 hover:bg-zinc-800 rounded-full transition-colors"
+            className="p-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-700 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Quick Presets */}
-        <div className="mb-5">
-          <label className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-[#1DB954]" />
-            Quick Preset Names
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {PRESET_NAMES.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => handleSelectPreset(preset)}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  name === preset
-                    ? 'bg-[#1DB954] text-black font-bold scale-105'
-                    : 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700'
-                }`}
-              >
-                {preset}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
               Playlist Name <span className="text-[#1DB954]">*</span>
             </label>
             <input
               type="text"
+              required
+              placeholder="e.g. My Favorite Chill Hits"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. My Favorite Beats"
+              className="w-full px-4 py-2.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:border-[#1DB954] text-sm"
               autoFocus
-              className="w-full bg-zinc-800/90 border border-zinc-700/80 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-[#1DB954] text-sm font-medium transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-1.5">
-              Description <span className="text-zinc-500 font-normal">(Optional)</span>
+            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              Description (Optional)
             </label>
-            <input
-              type="text"
+            <textarea
+              rows={3}
+              placeholder="Give your playlist a descriptive tagline..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Give your playlist a headline or mood description"
-              className="w-full bg-zinc-800/90 border border-zinc-700/80 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-[#1DB954] text-sm font-medium transition-colors"
+              className="w-full px-4 py-2.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:border-[#1DB954] text-sm resize-none"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+          <div className="flex items-center justify-end gap-3 pt-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-full text-xs font-bold text-zinc-400 hover:text-white transition-colors"
+              className="px-5 py-2.5 rounded-full text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name.trim()}
-              className="px-6 py-2.5 rounded-full text-xs font-extrabold bg-[#1DB954] text-black hover:bg-[#1ed760] hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50 disabled:hover:scale-100 disabled:hover:bg-[#1DB954]"
+              className="px-6 py-2.5 rounded-full text-xs font-bold text-black bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-50 transition-all shadow-md active:scale-95"
             >
               Create Playlist
             </button>
