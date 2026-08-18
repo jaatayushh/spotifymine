@@ -14,8 +14,8 @@ export function parseLrc(lrcText: string): LrcLine[] {
   const lines = lrcText.split(/\r?\n/);
   const result: LrcLine[] = [];
 
-  // Match timestamp tags e.g. [01:23.45], [01:23:45], [00:12]
-  const timeRegex = /\[(\d{2,}):(\d{2})(?:[.:](\d{2,3}))?\]/g;
+  // Match timestamp tags e.g. [01:23.45], [1:23:45], [00:12], [01:23,45]
+  const timeRegex = /\[(\d+):(\d{2})(?:[.:,](\d{1,3}))?\]/g;
 
   lines.forEach((line) => {
     const trimmed = line.trim();
@@ -39,7 +39,9 @@ export function parseLrc(lrcText: string): LrcLine[] {
 
       let fraction = 0;
       if (millisRaw) {
-        if (millisRaw.length === 2) {
+        if (millisRaw.length === 1) {
+          fraction = parseInt(millisRaw, 10) / 10;
+        } else if (millisRaw.length === 2) {
           fraction = parseInt(millisRaw, 10) / 100;
         } else if (millisRaw.length === 3) {
           fraction = parseInt(millisRaw, 10) / 1000;

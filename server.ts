@@ -66,6 +66,20 @@ async function startServer() {
   });
 
   // Hugging Face Audio Streaming Proxy
+  const AUDIO_MIME_TYPES: Record<string, string> = {
+    mp3: "audio/mpeg",
+    m4a: "audio/mp4",
+    aac: "audio/aac",
+    wav: "audio/wav",
+    ogg: "audio/ogg",
+    flac: "audio/flac",
+  };
+
+  function mimeTypeForFile(file: string): string | null {
+    const ext = file.split(".").pop()?.toLowerCase();
+    return (ext && AUDIO_MIME_TYPES[ext]) || null;
+  }
+
   app.get("/api/audio", async (req, res) => {
     const user = (req.query.user as string) || "CoolJaat";
     const repo = (req.query.repo as string) || "my-music-library";
@@ -96,10 +110,20 @@ async function startServer() {
 
       const headers = new Headers(response.headers);
       headers.delete('content-encoding');
+
+      const correctMime = mimeTypeForFile(file);
+      if (correctMime) {
+        headers.set('content-type', correctMime);
+      }
+      headers.set('content-disposition', 'inline');
+      if (!headers.has('accept-ranges')) {
+        headers.set('accept-ranges', 'bytes');
+      }
+
       headers.set('access-control-allow-origin', '*');
       headers.set('access-control-allow-methods', 'GET, HEAD, OPTIONS');
       headers.set('access-control-allow-headers', 'Content-Type, Range');
-      headers.set('access-control-expose-headers', 'Accept-Ranges, Content-Encoding, Content-Length, Content-Range');
+      headers.set('access-control-expose-headers', 'Accept-Ranges, Content-Encoding, Content-Length, Content-Range, Content-Type');
       headers.set('cross-origin-resource-policy', 'cross-origin');
 
       res.status(response.status);

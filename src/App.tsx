@@ -150,6 +150,9 @@ export default function App() {
   const [userQueue, setUserQueue] = useState<Track[]>([]);
   const [isAutoplay, setIsAutoplay] = useState(true);
 
+  // Sidebar Collapse State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   // Playlist Modals State
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
@@ -163,6 +166,11 @@ export default function App() {
   // Auto-generated playlists: play counts & recently played (persisted locally)
   const [playCounts, setPlayCounts] = useState<Record<string, number>>(() => Storage.getPlayCounts());
   const [recentlyPlayedIds, setRecentlyPlayedIds] = useState<string[]>(() => Storage.getRecentlyPlayed());
+  const [playedTrackIds, setPlayedTrackIds] = useState<string[]>([]);
+
+  const markTrackAsPlayed = useCallback((trackId: string) => {
+    setPlayedTrackIds((prev) => (prev.includes(trackId) ? prev : [...prev, trackId]));
+  }, []);
 
   const trackPlayStart = useCallback((track: Track) => {
     setPlayCounts(Storage.incrementPlayCount(track.id));
@@ -213,6 +221,30 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Stable "Up Next" list for the Queue modal — derived from shuffledOrder/tracks
+  // excluding already played songs in this pass and items in userQueue.
+  const upNextQueue = useMemo(() => {
+    if (tracks.length === 0) return [];
+
+    const baseSequence = isShuffle && shuffledOrder.length > 0 ? shuffledOrder : tracks;
+    const userQueueIds = new Set(userQueue.map((t) => t.id));
+    const playedSet = new Set(playedTrackIds);
+
+    // Remaining unplayed tracks in current pass
+    let unplayed = baseSequence.filter(
+      (t) => t.id !== currentTrack?.id && !userQueueIds.has(t.id) && !playedSet.has(t.id)
+    );
+
+    // If all tracks in baseSequence have been played in this pass, reset unplayed pool (excluding current & userQueue)
+    if (unplayed.length === 0) {
+      unplayed = baseSequence.filter(
+        (t) => t.id !== currentTrack?.id && !userQueueIds.has(t.id)
+      );
+    }
+
+    return unplayed;
+  }, [isShuffle, shuffledOrder, tracks, currentTrack, userQueue, playedTrackIds]);
+
   // Audio Ended Listener (Continuous Playback)
   const handleNextTrack = useCallback(() => {
     if (tracks.length === 0) return;
@@ -220,72 +252,27 @@ export default function App() {
     let nextTrack: Track | null = null;
 
     if (userQueue.length > 0) {
-      // Pop from queue
+      // 1. Pop from manual Add-to-Queue list
       nextTrack = userQueue[0];
       setUserQueue((prev) => prev.slice(1));
-    } else if (isAutoplay) {
-      // Random song from all tracks
-      const randomIndex = Math.floor(Math.random() * tracks.length);
-      nextTrack = tracks[randomIndex];
+    } else if (upNextQueue.length > 0) {
+      // 2. Play exact top item from Up Next queue (matches Queue UI 100%)
+      nextTrack = upNextQueue[0];
     } else {
-      const currentIndex = tracks.findIndex((t) => t.id === currentTrack?.id);
-
+      // 3. Queue pass completed — reset playedTrackIds and reshuffle if shuffle is on
+      setPlayedTrackIds([]);
       if (isShuffle) {
-        // Smart shuffle: if the currently playing track belongs to one of
-        // today's AI-generated mixes (Punjabi/Haryanvi/Hindi/Love), keep
-        // shuffling within that same mix instead of the whole library, so
-        // the next song stays contextually related to what's playing.
-        const currentCluster = currentTrack
-          ? aiPlaylists.find(
-              (pl) => pl.tracks.length >= 2 && pl.tracks.some((t) => t.id === currentTrack.id)
-            )
-          : undefined;
-
-        if (currentCluster) {
-          const recent = recentlyShuffledIdsRef.current;
-          let candidates = currentCluster.tracks.filter(
-            (t) => t.id !== currentTrack?.id && !recent.includes(t.id)
-          );
-          if (candidates.length === 0) {
-            // Exhausted this mix without repeats — allow repeats again,
-            // just avoid immediately replaying the current track.
-            candidates = currentCluster.tracks.filter((t) => t.id !== currentTrack?.id);
-          }
-          nextTrack =
-            candidates.length > 0
-              ? candidates[Math.floor(Math.random() * candidates.length)]
-              : currentCluster.tracks[0];
-        } else {
-          // No AI mix match (or no Gemini key configured yet) — fall back
-          // to the stable full-library shuffled order, advancing through
-          // it rather than re-randomizing on every track change. Only
-          // reshuffles (a fresh pass) once we've made it all the way
-          // through the current one.
-          const order = shuffledOrder.length > 0 ? shuffledOrder : tracks;
-          const posInOrder = order.findIndex((t) => t.id === currentTrack?.id);
-          const isLastInPass = posInOrder === -1 || posInOrder >= order.length - 1;
-          if (isLastInPass) {
-            const freshOrder: Track[] = shuffleArray(tracks);
-            setShuffledOrder(freshOrder);
-            nextTrack = freshOrder.length > 0 ? freshOrder[0] : null;
-          } else {
-            nextTrack = order[posInOrder + 1];
-          }
-        }
-
-        if (nextTrack) {
-          const recent = recentlyShuffledIdsRef.current;
-          recentlyShuffledIdsRef.current = [nextTrack.id, ...recent].slice(0, 8);
-        }
+        const freshOrder: Track[] = shuffleArray(tracks);
+        setShuffledOrder(freshOrder);
+        const match: Track | undefined = freshOrder.find((t: Track) => t.id !== currentTrack?.id);
+        nextTrack = match ?? freshOrder[0] ?? null;
       } else {
-        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % tracks.length : 0;
-        nextTrack = tracks[nextIndex];
+        const match: Track | undefined = tracks.find((t: Track) => t.id !== currentTrack?.id);
+        nextTrack = match ?? tracks[0] ?? null;
       }
     }
 
-    // Safari (iOS/macOS) has no decoder for .ogg or .flac at all, no matter
-    // what headers the server sends — skip straight past those instead of
-    // landing on a track that will silently fail to play.
+    // Safari (iOS/macOS) fallback for unplayable extensions
     if (nextTrack && isSafariBrowser() && !isSafariPlayable(nextTrack.path)) {
       const playableTracks = tracks.filter((t) => isSafariPlayable(t.path));
       nextTrack = playableTracks.length > 0
@@ -295,6 +282,7 @@ export default function App() {
 
     if (nextTrack) {
       setCurrentTrack(nextTrack);
+      markTrackAsPlayed(nextTrack.id);
       trackPlayStart(nextTrack);
       setBufferedPercent(0);
       if (audioRef.current) {
@@ -314,7 +302,7 @@ export default function App() {
           });
       }
     }
-  }, [tracks, currentTrack, isShuffle, shuffledOrder, userQueue, isAutoplay, trackPlayStart, aiPlaylists]);
+  }, [tracks, currentTrack, isShuffle, shuffledOrder, userQueue, upNextQueue, markTrackAsPlayed, trackPlayStart]);
 
   // Initialize HTML5 Audio Element event listeners
   // The <audio> element itself is rendered in the JSX below (required for iOS Safari)
@@ -600,6 +588,7 @@ export default function App() {
         return;
       } else {
         setCurrentTrack(track);
+        markTrackAsPlayed(track.id);
         trackPlayStart(track);
         setBufferedPercent(0);
         audio.src = getStreamableAudioUrl(track);
@@ -638,8 +627,14 @@ export default function App() {
   );
 
   const handleAddToQueue = useCallback((track: Track) => {
-    setUserQueue((prev) => [...prev, track]);
-    addToast(`Added ${track.title} to queue`, 'success');
+    setUserQueue((prev) => {
+      if (prev.some((t) => t.id === track.id)) {
+        addToast(`"${track.title}" is already in your queue`, 'info');
+        return prev;
+      }
+      addToast(`Added "${track.title}" to queue`, 'success');
+      return [...prev, track];
+    });
   }, [addToast]);
 
   // Play / Pause Toggle
@@ -680,10 +675,26 @@ export default function App() {
       return;
     }
 
+    if (playedTrackIds.length >= 2) {
+      const prevTrackId = playedTrackIds[playedTrackIds.length - 2];
+      const prevTrack = tracks.find((t) => t.id === prevTrackId);
+      if (prevTrack) {
+        setPlayedTrackIds((prev) => prev.slice(0, -1));
+        setCurrentTrack(prevTrack);
+        if (audioRef.current) {
+          audioRef.current.src = getStreamableAudioUrl(prevTrack);
+          audioRef.current.currentTime = 0;
+          audioRef.current.load();
+          audioRef.current.play().catch(() => {});
+        }
+        return;
+      }
+    }
+
     const currentIndex = tracks.findIndex((t) => t.id === currentTrack?.id);
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : tracks.length - 1;
     handlePlayTrack(tracks[prevIndex]);
-  }, [tracks, currentTrack, handlePlayTrack]);
+  }, [tracks, currentTrack, playedTrackIds, handlePlayTrack]);
 
   // Seek Progress
   const handleSeek = useCallback((time: number) => {
@@ -953,14 +964,7 @@ export default function App() {
     };
   }, [handleTogglePlayPause, handlePrevTrack, handleNextTrack, handleSeek]);
 
-  // Stable "Up Next" list for the Queue modal — derived from the one
-  // pre-shuffled order (not recomputed/re-randomized on every render).
-  const upNextQueue = useMemo(() => {
-    const rest = (isShuffle && shuffledOrder.length > 0 ? shuffledOrder : tracks).filter(
-      (t) => t.id !== currentTrack?.id
-    );
-    return rest;
-  }, [isShuffle, shuffledOrder, tracks, currentTrack]);
+
 
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-white font-sans overflow-hidden select-none">
@@ -981,6 +985,9 @@ export default function App() {
           onRequestCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
           activePlaylistId={activePlaylistId}
           setActivePlaylistId={setActivePlaylistId}
+          onOpenQueue={() => setIsQueueOpen(true)}
+          onCloseSidebar={() => setIsSidebarOpen(false)}
+          isSidebarOpen={isSidebarOpen}
         />
 
         <div className="flex-1 flex flex-col min-w-0 bg-[#121212] overflow-hidden">
@@ -994,6 +1001,8 @@ export default function App() {
             onLogOut={handleLogOut}
             onOpenInstallModal={() => setIsInstallModalOpen(true)}
             onOpenAdmin={() => setActiveTab('admin')}
+            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+            isSidebarOpen={isSidebarOpen}
           />
 
           <MainView

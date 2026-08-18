@@ -166,17 +166,30 @@ export function getGradientColors(str: string): [string, string] {
   return palettes[index];
 }
 
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 /**
  * Generate a dynamic SVG cover art Data URL as fallback
  */
 export function generateCoverArt(title: string, artist: string, colors: [string, string]): string {
-  const initials = title
+  const rawInitials = title
     .split(' ')
     .map((w) => w[0])
     .filter(Boolean)
     .slice(0, 2)
     .join('')
     .toUpperCase();
+
+  const initials = escapeXml(rawInitials);
+  const displayTitle = escapeXml(title.length > 22 ? title.substring(0, 20) + '...' : title);
+  const displayArtist = escapeXml(artist.length > 25 ? artist.substring(0, 23) + '...' : artist);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
       <defs>
@@ -202,10 +215,10 @@ export function generateCoverArt(title: string, artist: string, colors: [string,
       
       <!-- Title text -->
       <text x="150" y="185" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="16" fill="#FFFFFF" text-anchor="middle">
-        ${title.length > 22 ? title.substring(0, 20) + '...' : title}
+        ${displayTitle}
       </text>
       <text x="150" y="210" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="13" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">
-        ${artist.length > 25 ? artist.substring(0, 23) + '...' : artist}
+        ${displayArtist}
       </text>
     </svg>`;
 

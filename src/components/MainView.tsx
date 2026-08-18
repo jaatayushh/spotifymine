@@ -23,6 +23,7 @@ import { getGreeting, shuffleArray, getGradientColors } from '../utils/audioUtil
 
 interface MainViewProps {
   activeTab: ActiveTab;
+  setActiveTab?: (tab: ActiveTab) => void;
   tracks: Track[];
   isLoadingHF?: boolean;
   currentTrack: Track | null;
@@ -54,6 +55,7 @@ interface MainViewProps {
 
 export const MainView: React.FC<MainViewProps> = ({
   activeTab,
+  setActiveTab,
   tracks,
   isLoadingHF = false,
   currentTrack,
@@ -149,104 +151,105 @@ export const MainView: React.FC<MainViewProps> = ({
 
   // Currently-open AI-generated playlist, if any
   const viewingAiPlaylist = aiPlaylists.find((p) => p.id === viewingAiPlaylistId) || null;
+  const [homeFilter, setHomeFilter] = useState<'all' | 'music' | 'podcasts'>('all');
 
   return (
-    <main className="flex-1 overflow-y-auto pb-36 md:pb-28 px-4 sm:px-6 pt-4 custom-scrollbar select-none bg-gradient-to-b from-zinc-900 via-[#121212] to-[#121212]">
+    <main className="flex-1 overflow-y-auto pb-36 md:pb-28 px-4 sm:px-6 pt-4 custom-scrollbar select-none bg-[#121212]">
       {activeTab === 'home' && !activePlaylistId && !isViewingTodaysMix && !viewingAiPlaylistId && (
-        <div className="space-y-10 animate-in fade-in duration-500">
+        <div className="space-y-8 animate-in fade-in duration-300">
 
-          {/* ── GREETING ── */}
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight mb-1">
-              {greeting}
-            </h1>
-            <p className="text-sm text-zinc-500 font-medium">What sounds good today?</p>
+          {/* ── TOP CATEGORY FILTER PILLS ── */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setHomeFilter('all')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
+                homeFilter === 'all' ? 'bg-white text-black' : 'bg-[#2a2a2a] hover:bg-[#383838] text-white'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setHomeFilter('music')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
+                homeFilter === 'music' ? 'bg-white text-black' : 'bg-[#2a2a2a] hover:bg-[#383838] text-white'
+              }`}
+            >
+              Music
+            </button>
+
           </div>
 
-          {/* ── TODAY'S MIX — big featured playlist card ── */}
-          {(displayMixTracks.length > 0 || tracks.length > 0) && (
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-[#1DB954]" />
-                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Today's Mix</h2>
-                  <span
-                    className="text-[11px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full"
-                    style={{ background: 'rgba(29,185,84,0.15)', color: '#1DB954', border: '1px solid rgba(29,185,84,0.3)' }}
-                  >
-                    {displayMixTracks.length || 100} Songs
-                  </span>
+          {/* ── QUICK ACCESS GRID (2-COLUMN CARDS) ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
+            {tracks.slice(0, 4).map((track) => (
+              <div
+                key={track.id}
+                onClick={() => onPlayTrack(track, tracks)}
+                className="flex items-center justify-between bg-[#282828] hover:bg-[#383838] rounded-md overflow-hidden cursor-pointer group transition-all duration-200 shadow-md"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={track.coverArtUrl || ''}
+                    alt={track.title}
+                    className="w-14 h-14 object-cover shrink-0 bg-zinc-800"
+                    onError={(e) => { e.currentTarget.style.background = '#18181b'; }}
+                  />
+                  <span className="text-sm font-bold text-white truncate pr-2">{track.title}</span>
                 </div>
                 <button
-                  onClick={() => setIsViewingTodaysMix(true)}
-                  className="text-xs font-bold text-[#1DB954] hover:underline"
+                  className="mr-3 opacity-0 group-hover:opacity-100 transition-all p-3 bg-[#1DB954] text-black rounded-full shadow-lg hover:scale-105 active:scale-95 shrink-0"
+                  title="Play"
                 >
-                  View All 100 →
+                  <Play className="w-4 h-4 fill-black translate-x-0.5" />
                 </button>
               </div>
+            ))}
+          </div>
 
-              {/* Big playlist card */}
-              <div
-                onClick={() => setIsViewingTodaysMix(true)}
-                className="group relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-500 hover:scale-[1.01]"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(29,185,84,0.22) 0%, rgba(16,185,129,0.10) 40%, rgba(9,9,11,0.95) 100%)',
-                  border: '1px solid rgba(29,185,84,0.25)',
-                  boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
-                }}
-              >
-                {/* Background ambient glow */}
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"
-                  style={{ background: 'radial-gradient(ellipse 60% 60% at 30% 50%, rgba(29,185,84,0.18), transparent)' }}
-                />
 
-                <div className="relative flex items-center gap-5 p-5 sm:p-6">
-                  {/* Cover art collage – 2x2 grid of track thumbnails */}
-                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden shrink-0 grid grid-cols-2 gap-0.5 shadow-2xl" style={{ boxShadow: '0 0 30px rgba(29,185,84,0.25)' }}>
-                    {displayMixTracks.slice(0, 4).map((t, i) => (
-                      <img
-                        key={i}
-                        src={t.coverArtUrl || ''}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        style={{ background: 'rgba(255,255,255,0.05)' }}
-                        onError={e => { e.currentTarget.style.background = '#18181b'; }}
-                      />
-                    ))}
-                  </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-black uppercase tracking-widest mb-1 text-[#1DB954]">Featured 100-Song Playlist</p>
-                    <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-1">Today's Mix</h3>
-                    <p className="text-sm text-zinc-300 mb-3">{displayMixTracks.length || 100} custom tracks · Tap to view, play & delete songs</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {displayMixTracks.slice(0, 4).map((t, i) => (
-                        <span key={t.instanceId || i} className="text-[11px] text-zinc-400 font-medium">{t.artist}</span>
-                      ))}
-                      {displayMixTracks.length > 4 && <span className="text-[11px] text-zinc-500">& more</span>}
-                    </div>
-                  </div>
-
-                  {/* Play button */}
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      if (displayMixTracks.length > 0) {
-                        onPlayTrack(displayMixTracks[0], displayMixTracks);
-                      }
-                    }}
-                    className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 shadow-2xl transition-all duration-300 opacity-90 group-hover:opacity-100 group-hover:scale-110 active:scale-95"
-                    style={{ background: 'linear-gradient(135deg, #1DB954, #1ed760)', boxShadow: '0 4px 20px rgba(29,185,84,0.5)' }}
-                    title="Play Today's Mix in Order"
-                  >
-                    <Play className="w-7 h-7 fill-black text-black translate-x-0.5" />
-                  </button>
-                </div>
+          {/* ── RECOMMENDED FOR TODAY ── */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <span className="text-xs text-zinc-400 font-medium block">Inspired by your recent activity</span>
+                <h2 className="text-2xl font-bold text-white tracking-tight">Recommended for today</h2>
               </div>
-            </section>
-          )}
+              <button
+                onClick={() => setActiveTab && setActiveTab('allSongs')}
+                className="text-xs font-bold text-zinc-400 hover:text-white transition-colors"
+              >
+                Show all
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {tracks.slice(0, 5).map((track) => (
+                <div
+                  key={track.id}
+                  onClick={() => onPlayTrack(track, tracks)}
+                  className="bg-[#181818] hover:bg-[#282828] p-4 rounded-lg cursor-pointer group transition-all duration-300 flex flex-col"
+                >
+                  <div className="relative mb-3 aspect-square rounded-md overflow-hidden bg-zinc-800 shadow-md">
+                    <img
+                      src={track.coverArtUrl || ''}
+                      alt={track.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => { e.currentTarget.style.background = '#27272a'; }}
+                    />
+                    <button
+                      className="absolute bottom-2 right-2 w-10 h-10 bg-[#1DB954] text-black rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 hover:scale-105 active:scale-95"
+                      title="Play"
+                    >
+                      <Play className="w-5 h-5 fill-black translate-x-0.5" />
+                    </button>
+                  </div>
+                  <h3 className="font-bold text-white text-sm truncate mb-1">{track.title}</h3>
+                  <p className="text-xs text-zinc-400 truncate">{track.artist || 'Unknown Artist'}</p>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* ── RECENTLY PLAYED ── */}
           {recentlyPlayedTracks.length > 0 && (

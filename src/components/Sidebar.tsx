@@ -11,6 +11,7 @@ import {
   Mic2,
   Sparkles,
   ListMusic,
+  X,
 } from 'lucide-react';
 import { ActiveTab, Playlist } from '../types';
 
@@ -23,6 +24,9 @@ interface SidebarProps {
   activePlaylistId: string | null;
   setActivePlaylistId: (id: string | null) => void;
   onOpenTodaysMix?: () => void;
+  onOpenQueue?: () => void;
+  onCloseSidebar?: () => void;
+  isSidebarOpen?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -34,6 +38,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activePlaylistId,
   setActivePlaylistId,
   onOpenTodaysMix,
+  onOpenQueue,
+  onCloseSidebar,
+  isSidebarOpen = true,
 }) => {
 
   const navItem = (
@@ -69,66 +76,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
+  if (!isSidebarOpen) return null;
+
   return (
     <>
       {/* Desktop Sidebar */}
       <aside
-        className="hidden md:flex flex-col w-60 p-2.5 gap-2 shrink-0 select-none"
+        className="hidden md:flex flex-col w-72 lg:w-80 p-2 gap-2 shrink-0 select-none transition-all duration-200"
         style={{ background: '#000000' }}
       >
-        {/* Top Nav Block */}
-        <div
-          className="rounded-xl p-3 flex flex-col gap-1"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }}
-        >
-          {/* Brand */}
-          <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: '#1DB954' }}
-            >
-              <Disc className="w-4 h-4 text-black" style={{ animation: 'spin 4s linear infinite' }} />
-            </div>
-            <span className="text-white font-extrabold text-base tracking-tight">SpotifyMine</span>
-          </div>
-
-          <nav className="flex flex-col gap-0.5">
-            {navItem('home', 'Home', Home)}
-            {navItem('search', 'Search', Search)}
-            {navItem('library', 'Your Library', Library)}
-            {navItem('allSongs', 'All Songs', ListMusic)}
-            {navItem('lyrics', 'Lyrics', Mic2)}
-          </nav>
-        </div>
 
         {/* Library Block */}
-        <div
-          className="rounded-xl p-3 flex-1 flex flex-col gap-2 overflow-hidden"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }}
-        >
+        <div className="bg-[#121212] rounded-xl p-3 flex-1 flex flex-col gap-2 overflow-hidden border border-zinc-800/40">
           {/* Library Header */}
-          <div
-            className="flex items-center justify-between px-2 pb-2"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            <div className="flex items-center gap-2 text-xs font-bold" style={{ color: '#71717a' }}>
-              <Folder className="w-4 h-4" />
-              <span>Playlists</span>
+          <div className="flex items-center justify-between px-2 py-1">
+            <div className="flex items-center gap-3 text-zinc-400 hover:text-white transition-colors cursor-pointer" onClick={() => setActiveTab('library')}>
+              <Library className="w-6 h-6" />
+              <span className="font-bold text-sm text-white">Your Library</span>
             </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onRequestCreatePlaylist}
+                className="p-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-all"
+                title="Create playlist"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  if (onCloseSidebar) {
+                    onCloseSidebar();
+                  } else {
+                    setActiveTab('home');
+                    setActivePlaylistId(null);
+                  }
+                }}
+                className="p-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800 transition-all"
+                title="Close Your Library"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-2 px-1 py-1">
             <button
-              onClick={onRequestCreatePlaylist}
-              className="p-1.5 rounded-full transition-all hover:scale-110 active:scale-95"
-              style={{ color: '#71717a' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(29,185,84,0.15)'; e.currentTarget.style.color = '#1DB954'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#71717a'; }}
-              title="Create Playlist"
+              onClick={() => setActiveTab('library')}
+              className="bg-[#2a2a2a] hover:bg-[#333333] text-white text-xs font-bold px-3 py-1.5 rounded-full transition-all"
             >
-              <Plus className="w-4 h-4" />
+              Playlists
             </button>
           </div>
 
+          {/* Search & Recents header */}
+          <div className="flex items-center justify-between px-2 py-1 text-xs font-bold text-zinc-400">
+            <Search className="w-4 h-4 text-zinc-400 hover:text-white cursor-pointer" />
+            <div className="flex items-center gap-1 cursor-pointer hover:text-white">
+              <span>Recents</span>
+              <ListMusic className="w-4 h-4" />
+            </div>
+          </div>
+
           {/* Playlists List */}
-          <div className="flex-1 overflow-y-auto space-y-0.5 pr-0.5" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
             {/* Today's Mix */}
             <button
               onClick={() => {
@@ -136,40 +147,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setActivePlaylistId(null);
                 if (onOpenTodaysMix) onOpenTodaysMix();
               }}
-              className="w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left"
-              style={{
-                background: 'transparent',
-                color: '#a1a1aa',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(29,185,84,0.12)'; e.currentTarget.style.color = '#ffffff'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#a1a1aa'; }}
+              className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/60 transition-all text-left group"
             >
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 via-teal-600 to-green-700 flex items-center justify-center shrink-0 shadow">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="w-12 h-12 rounded bg-gradient-to-br from-emerald-500 via-teal-600 to-green-700 flex items-center justify-center shrink-0 shadow">
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-xs font-bold truncate text-white">Today's Mix</span>
-                <span className="text-[10px] text-emerald-400 font-semibold">100 songs</span>
+                <span className="text-sm font-bold truncate text-white group-hover:text-emerald-400 transition-colors">Today's Mix</span>
+                <span className="text-xs text-zinc-400 truncate">📌 Playlist • 100 songs</span>
               </div>
             </button>
 
             {/* Liked Songs */}
             <button
               onClick={() => { setActiveTab('liked'); setActivePlaylistId(null); }}
-              className="w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left"
-              style={{
-                background: activeTab === 'liked' ? 'rgba(255,255,255,0.08)' : 'transparent',
-                color: activeTab === 'liked' ? '#ffffff' : '#a1a1aa',
-              }}
-              onMouseEnter={e => { if (activeTab !== 'liked') { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#ffffff'; }}}
-              onMouseLeave={e => { e.currentTarget.style.background = activeTab === 'liked' ? 'rgba(255,255,255,0.08)' : 'transparent'; e.currentTarget.style.color = activeTab === 'liked' ? '#ffffff' : '#a1a1aa'; }}
+              className={`w-full flex items-center gap-3 p-2 rounded-lg transition-all text-left group ${
+                activeTab === 'liked' ? 'bg-zinc-800/80 text-white' : 'hover:bg-zinc-800/60 text-zinc-300'
+              }`}
             >
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shrink-0 shadow">
-                <Heart className="w-4 h-4 fill-white text-white" />
+              <div className="w-12 h-12 rounded bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shrink-0 shadow">
+                <Heart className="w-5 h-5 fill-white text-white" />
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-xs font-bold truncate">Liked Songs</span>
-                <span className="text-[10px]" style={{ color: '#71717a' }}>{likedCount} songs</span>
+                <span className="text-sm font-bold truncate text-white">Liked Songs</span>
+                <span className="text-xs text-zinc-400 truncate">📌 Playlist • {likedCount} songs</span>
               </div>
             </button>
 
@@ -178,20 +179,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={pl.id}
                 onClick={() => { setActivePlaylistId(pl.id); setActiveTab('playlist'); }}
-                className="w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left"
-                style={{
-                  background: activePlaylistId === pl.id ? 'rgba(255,255,255,0.08)' : 'transparent',
-                  color: activePlaylistId === pl.id ? '#ffffff' : '#a1a1aa',
-                }}
-                onMouseEnter={e => { if (activePlaylistId !== pl.id) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#ffffff'; }}}
-                onMouseLeave={e => { e.currentTarget.style.background = activePlaylistId === pl.id ? 'rgba(255,255,255,0.08)' : 'transparent'; e.currentTarget.style.color = activePlaylistId === pl.id ? '#ffffff' : '#a1a1aa'; }}
+                className={`w-full flex items-center gap-3 p-2 rounded-lg transition-all text-left group ${
+                  activePlaylistId === pl.id ? 'bg-zinc-800/80 text-white' : 'hover:bg-zinc-800/60 text-zinc-300'
+                }`}
               >
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                  <Music className="w-4 h-4" style={{ color: '#71717a' }} />
+                <div className="w-12 h-12 rounded bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden border border-zinc-700/50">
+                  <ListMusic className="w-5 h-5 text-zinc-400" />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-bold text-white truncate">{pl.name}</span>
-                  <span className="text-[10px]" style={{ color: '#71717a' }}>{pl.trackIds.length} tracks</span>
+                  <span className="text-sm font-bold truncate text-white">{pl.name}</span>
+                  <span className="text-xs text-zinc-400 truncate">📌 Playlist • Ayush</span>
                 </div>
               </button>
             ))}

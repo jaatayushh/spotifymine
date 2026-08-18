@@ -30,8 +30,14 @@ export const QueueModal: React.FC<QueueModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex justify-end animate-in fade-in duration-200">
-      <div className="bg-zinc-950 border-l border-zinc-800 w-full max-w-md h-full flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-right duration-300">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex justify-end animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-zinc-950 border-l border-zinc-800 w-full max-w-md h-full flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-right duration-300"
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800 shrink-0">
           <div className="flex items-center gap-2 text-white font-bold text-lg">
