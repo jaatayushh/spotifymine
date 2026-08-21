@@ -17,6 +17,13 @@ import {
   isSafariPlayable
 } from './utils/audioUtils';
 import { Storage } from './utils/storage';
+import {
+  downloadTrack,
+  removeDownloadedTrack,
+  getDownloadedTrackIds,
+  getAllDownloadedTracks,
+  getLocalAudioUrl
+} from './utils/offlineStorage';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -167,6 +174,65 @@ export default function App() {
   const [playCounts, setPlayCounts] = useState<Record<string, number>>(() => Storage.getPlayCounts());
   const [recentlyPlayedIds, setRecentlyPlayedIds] = useState<string[]>(() => Storage.getRecentlyPlayed());
   const [playedTrackIds, setPlayedTrackIds] = useState<string[]>([]);
+
+  // Offline Storage & Download States
+  const [downloadedTrackIds, setDownloadedTrackIds] = useState<string[]>([]);
+  const [downloadedTracks, setDownloadedTracks] = useState<Track[]>([]);
+  const [isDownloadingMap, setIsDownloadingMap] = useState<Record<string, boolean>>({});
+  const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, number>>({});
+
+  const refreshOfflineDownloads = useCallback(async () => {
+    try {
+      const ids = await getDownloadedTrackIds();
+      setDownloadedTrackIds(ids);
+      const items = await getAllDownloadedTracks();
+      const loaded = items.map((i) => i.track);
+      setDownloadedTracks(loaded);
+      return loaded;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshOfflineDownloads().then((offlineItems) => {
+      if (!navigator.onLine && offlineItems.length > 0) {
+        setActiveTab('downloads');
+      }
+    });
+  }, [refreshOfflineDownloads]);
+
+  const handleToggleDownload = useCallback(
+    async (track: Track) => {
+      const isDownloaded = downloadedTrackIds.includes(track.id);
+
+      if (isDownloaded) {
+        try {
+          await removeDownloadedTrack(track.id);
+          addToast(`Removed "${track.title}" from downloads`, 'info');
+          await refreshOfflineDownloads();
+        } catch {
+          addToast('Failed to remove download', 'error');
+        }
+      } else {
+        setIsDownloadingMap((prev) => ({ ...prev, [track.id]: true }));
+        setDownloadProgressMap((prev) => ({ ...prev, [track.id]: 0 }));
+        try {
+          await downloadTrack(track, (percent) => {
+            setDownloadProgressMap((prev) => ({ ...prev, [track.id]: percent }));
+          });
+          addToast(`Downloaded "${track.title}" for offline playback!`, 'success');
+          await refreshOfflineDownloads();
+        } catch (err: any) {
+          console.error('Download error:', err);
+          addToast(`Failed to download "${track.title}". Check connection.`, 'error');
+        } finally {
+          setIsDownloadingMap((prev) => ({ ...prev, [track.id]: false }));
+        }
+      }
+    },
+    [downloadedTrackIds, addToast, refreshOfflineDownloads]
+  );
 
   const markTrackAsPlayed = useCallback((trackId: string) => {
     setPlayedTrackIds((prev) => (prev.includes(trackId) ? prev : [...prev, trackId]));
@@ -591,8 +657,23 @@ export default function App() {
         markTrackAsPlayed(track.id);
         trackPlayStart(track);
         setBufferedPercent(0);
-        audio.src = getStreamableAudioUrl(track);
-        audio.currentTime = 0;
+
+        // Check if track is downloaded locally in IndexedDB to avoid internet usage!
+        getLocalAudioUrl(track.id).then((localBlobUrl) => {
+          audio.src = localBlobUrl || track.audioUrl || getStreamableAudioUrl(track);
+          audio.currentTime = 0;
+          audio
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+            })
+            .catch((err) => {
+              if (!isBenignPlayError(err)) {
+                console.error('Play failed:', err);
+                addToast('Error starting audio playback.', 'error');
+              }
+            });
+        });
         
         if (customQueue && customQueue.length > 0) {
           const trackIdx = customQueue.findIndex((t) => t.id === track.id);
@@ -1007,7 +1088,12 @@ export default function App() {
 
           <MainView
             activeTab={activeTab}
+            setActiveTab={setActiveTab}
             tracks={tracks}
+            downloadedTracks={downloadedTracks}
+            downloadedTrackIds={downloadedTrackIds}
+            isDownloadingMap={isDownloadingMap}
+            onToggleDownload={handleToggleDownload}
             isLoadingHF={isLoadingHF}
             currentTrack={currentTrack}
             isPlaying={isPlaying}
@@ -1092,6 +1178,9 @@ export default function App() {
         isShuffle={isShuffle}
         repeatMode={repeatMode}
         isLiked={currentTrack ? likedTrackIds.includes(currentTrack.id) : false}
+        isDownloaded={currentTrack ? downloadedTrackIds.includes(currentTrack.id) : false}
+        isDownloading={currentTrack ? Boolean(isDownloadingMap[currentTrack.id]) : false}
+        downloadProgress={currentTrack ? downloadProgressMap[currentTrack.id] || 0 : 0}
         initialTab={maximizedInitialTab}
         onPlayPause={handleTogglePlayPause}
         onPrevTrack={handlePrevTrack}
@@ -1102,12 +1191,13 @@ export default function App() {
         onToggleShuffle={handleToggleShuffle}
         onToggleRepeat={handleToggleRepeat}
         onToggleLike={handleToggleLike}
+        onToggleDownload={handleToggleDownload}
         onOpenQueue={() => setIsQueueOpen(true)}
         userQueue={userQueue}
         isAutoplay={isAutoplay}
-        onToggleAutoplay={() => setIsAutoplay(!isAutoplay)}
-        onRemoveFromQueue={(index) => setUserQueue((prev) => prev.filter((_, i) => i !== index))}
-        onPlayTrack={handlePlayTrack}
+        onToggleAutoplay={() => setIsAutoplay((prev) => !prev)}
+        onRemoveFromQueue={(idx) => setUserQueue((prev) => prev.filter((_, i) => i !== idx))}
+        onPlayTrack={(t) => handlePlayTrack(t)}
       />
 
       {/* Queue Drawer Modal */}

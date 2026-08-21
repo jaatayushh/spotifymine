@@ -36,7 +36,7 @@ export interface AiPlaylist {
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
-export type ActiveTab = 'home' | 'search' | 'library' | 'liked' | 'playlist' | 'lyrics' | 'admin' | 'allSongs';
+export type ActiveTab = 'home' | 'search' | 'library' | 'liked' | 'playlist' | 'lyrics' | 'admin' | 'allSongs' | 'downloads';
 
 export interface ToastMessage {
   id: string;

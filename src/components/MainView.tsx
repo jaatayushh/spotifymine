@@ -13,6 +13,7 @@ import {
   Sparkles,
   History,
   X,
+  Download,
 } from 'lucide-react';
 import { ActiveTab, AiPlaylist, Playlist, Track } from '../types';
 import { TrackCard } from './TrackCard';
@@ -25,6 +26,10 @@ interface MainViewProps {
   activeTab: ActiveTab;
   setActiveTab?: (tab: ActiveTab) => void;
   tracks: Track[];
+  downloadedTracks?: Track[];
+  downloadedTrackIds?: string[];
+  isDownloadingMap?: Record<string, boolean>;
+  onToggleDownload?: (track: Track) => void;
   isLoadingHF?: boolean;
   currentTrack: Track | null;
   isPlaying: boolean;
@@ -57,6 +62,10 @@ export const MainView: React.FC<MainViewProps> = ({
   activeTab,
   setActiveTab,
   tracks,
+  downloadedTracks = [],
+  downloadedTrackIds = [],
+  isDownloadingMap = {},
+  onToggleDownload,
   isLoadingHF = false,
   currentTrack,
   isPlaying,
@@ -610,6 +619,60 @@ export const MainView: React.FC<MainViewProps> = ({
               <p className="text-lg font-bold text-white">
                 {allSongsFilter ? `No songs match "${allSongsFilter}"` : 'No songs found in the library.'}
               </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ----------------- DOWNLOADED SONGS TAB ----------------- */}
+      {activeTab === 'downloads' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-[#1DB954]/20 rounded-2xl border border-[#1DB954]/30">
+                <Download className="w-8 h-8 text-[#1DB954]" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-extrabold text-white tracking-tight">Downloaded Songs</h2>
+                <p className="text-xs text-zinc-400 mt-1">
+                  {downloadedTracks.length} song{downloadedTracks.length === 1 ? '' : 's'} saved for offline playback
+                </p>
+              </div>
+            </div>
+            {downloadedTracks.length > 0 && (
+              <button
+                onClick={() => onPlayTrack(downloadedTracks[0], downloadedTracks)}
+                className="flex items-center gap-2 bg-[#1DB954] hover:bg-[#1ed760] text-black font-extrabold px-6 py-2.5 rounded-full transition-all active:scale-95 shadow-lg shrink-0"
+              >
+                <Play className="w-4 h-4 fill-black" />
+                Play All Offline
+              </button>
+            )}
+          </div>
+
+          {downloadedTracks.length === 0 ? (
+            <div className="py-20 text-center text-zinc-500 bg-[#181818]/60 border border-zinc-800/60 rounded-3xl p-8 max-w-lg mx-auto space-y-3">
+              <Download className="w-12 h-12 mx-auto text-zinc-600" />
+              <h3 className="text-lg font-bold text-white">No downloaded songs yet</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Download your favorite songs, posters, and synced lyrics from the full-screen player or track menus to enjoy uninterrupted music offline anytime!
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              {downloadedTracks.map((track) => (
+                <TrackCard
+                  key={track.id}
+                  track={track}
+                  isPlaying={isPlaying}
+                  isCurrentTrack={currentTrack?.id === track.id}
+                  isLiked={likedTrackIds.includes(track.id)}
+                  onPlay={(t) => onPlayTrack(t, downloadedTracks)}
+                  onToggleLike={onToggleLike}
+                  onAddToPlaylist={onAddToPlaylist}
+                  onAddToQueue={onAddToQueue}
+                />
+              ))}
             </div>
           )}
         </div>

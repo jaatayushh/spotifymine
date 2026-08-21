@@ -12,6 +12,7 @@ import {
   Sparkles,
   ListMusic,
   X,
+  Download,
 } from 'lucide-react';
 import { ActiveTab, Playlist } from '../types';
 
@@ -123,9 +124,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-2 px-1 py-1">
             <button
               onClick={() => setActiveTab('library')}
-              className="bg-[#2a2a2a] hover:bg-[#333333] text-white text-xs font-bold px-3 py-1.5 rounded-full transition-all"
+              className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all ${
+                activeTab === 'library' ? 'bg-white text-black' : 'bg-[#2a2a2a] hover:bg-[#333333] text-white'
+              }`}
             >
               Playlists
+            </button>
+            <button
+              onClick={() => setActiveTab('downloads')}
+              className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
+                activeTab === 'downloads' ? 'bg-[#1DB954] text-black' : 'bg-[#2a2a2a] hover:bg-[#333333] text-white'
+              }`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Downloaded</span>
             </button>
           </div>
 

@@ -16,7 +16,10 @@ import {
   Sparkles,
   RefreshCw,
   X,
-  Radio
+  Radio,
+  Download,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { RepeatMode, Track } from '../types';
 import { formatTime, generateCoverArt } from '../utils/audioUtils';
@@ -35,6 +38,9 @@ interface ExpandedNowPlayingModalProps {
   isShuffle: boolean;
   repeatMode: RepeatMode;
   isLiked: boolean;
+  isDownloaded?: boolean;
+  isDownloading?: boolean;
+  downloadProgress?: number;
   initialTab?: 'art' | 'lyrics';
   onPlayPause: () => void;
   onPrevTrack: () => void;
@@ -45,6 +51,7 @@ interface ExpandedNowPlayingModalProps {
   onToggleShuffle: () => void;
   onToggleRepeat: () => void;
   onToggleLike: (trackId: string, e: React.MouseEvent) => void;
+  onToggleDownload?: (track: Track) => void;
   onOpenQueue: () => void;
   userQueue?: Track[];
   isAutoplay?: boolean;
@@ -66,6 +73,9 @@ export const ExpandedNowPlayingModal: React.FC<ExpandedNowPlayingModalProps> = (
   isShuffle,
   repeatMode,
   isLiked,
+  isDownloaded = false,
+  isDownloading = false,
+  downloadProgress = 0,
   initialTab = 'art',
   onPlayPause,
   onPrevTrack,
@@ -76,6 +86,7 @@ export const ExpandedNowPlayingModal: React.FC<ExpandedNowPlayingModalProps> = (
   onToggleShuffle,
   onToggleRepeat,
   onToggleLike,
+  onToggleDownload,
   onOpenQueue,
   userQueue = [],
   isAutoplay = false,
@@ -209,9 +220,9 @@ export const ExpandedNowPlayingModal: React.FC<ExpandedNowPlayingModalProps> = (
               )}
             </div>
 
-            {/* Track Info & Like */}
-            <div className="w-full flex items-center justify-between px-2">
-              <div className="min-w-0 pr-4">
+            {/* Track Info & Action Buttons (Like + Download) */}
+            <div className="w-full flex items-center justify-between px-2 gap-3">
+              <div className="min-w-0 flex-1">
                 <h2 className="text-xl sm:text-2xl font-black text-white truncate tracking-tight">
                   {currentTrack.title}
                 </h2>
@@ -220,17 +231,50 @@ export const ExpandedNowPlayingModal: React.FC<ExpandedNowPlayingModalProps> = (
                 </p>
               </div>
 
-              <button
-                onClick={(e) => onToggleLike(currentTrack.id, e)}
-                className={`p-3 rounded-full transition-all active:scale-90 shrink-0 ${
-                  isLiked
-                    ? 'text-[#1DB954] bg-[#1DB954]/10'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-                }`}
-                title={isLiked ? 'Remove from Liked' : 'Save to Liked'}
-              >
-                <Heart className={`w-7 h-7 ${isLiked ? 'fill-[#1DB954]' : ''}`} />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Download Button */}
+                {onToggleDownload && (
+                  <button
+                    onClick={() => onToggleDownload(currentTrack)}
+                    disabled={isDownloading}
+                    className={`p-3 rounded-full transition-all active:scale-90 ${
+                      isDownloaded
+                        ? 'text-[#1DB954] bg-[#1DB954]/10'
+                        : isDownloading
+                        ? 'text-yellow-400 bg-yellow-400/10'
+                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                    }`}
+                    title={
+                      isDownloaded
+                        ? 'Downloaded for offline playback (Click to remove)'
+                        : isDownloading
+                        ? `Downloading (${downloadProgress}%)...`
+                        : 'Download song, poster & lyrics for offline playback'
+                    }
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="w-6 h-6 animate-spin text-yellow-400" />
+                    ) : isDownloaded ? (
+                      <CheckCircle2 className="w-6 h-6 fill-[#1DB954] text-black" />
+                    ) : (
+                      <Download className="w-6 h-6" />
+                    )}
+                  </button>
+                )}
+
+                {/* Heart Like Button */}
+                <button
+                  onClick={(e) => onToggleLike(currentTrack.id, e)}
+                  className={`p-3 rounded-full transition-all active:scale-90 ${
+                    isLiked
+                      ? 'text-[#1DB954] bg-[#1DB954]/10'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                  }`}
+                  title={isLiked ? 'Remove from Liked' : 'Save to Liked'}
+                >
+                  <Heart className={`w-6 h-6 ${isLiked ? 'fill-[#1DB954]' : ''}`} />
+                </button>
+              </div>
             </div>
           </div>
         ) : (
