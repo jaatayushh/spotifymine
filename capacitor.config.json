@@ -1,6 +1,6 @@
 {
   "appId": "com.spotify.mine",
-  "appName": "Spotify",
+  "appName": "SpotifyMine",
   "webDir": "dist",
   "bundledWebRuntime": false
 }
